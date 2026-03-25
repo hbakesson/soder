@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="sv">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Södermalm - Upptäck gatorna</title>
+    <meta name="description"
+        content="En modern guide till Södermalms gator och historia. Utforska gatorna och lär dig mer om stadsdelen.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">
+                <i class="ph-bold ph-map-trifold"></i>
+                <h1>Södermalm<span>.one</span></h1>
+            </div>
+            <div class="search-container">
+                <i class="ph ph-magnifying-glass"></i>
+                <input type="text" id="streetSearch" placeholder="Sök efter en gata eller plats...">
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="intro">
+                <h2>Utforska söders gator</h2>
+                <p>Klicka på en gata för att läsa mer om dess historia, byggnader och atmosfär.</p>
+            </div>
+            <div id="streetGrid" class="street-grid">
+                <!-- Cards will be injected here -->
+                <div class="loader">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Södermalm.one - Sammanställt av Bengt-Göran Jönsson</p>
+        </div>
+    </footer>
+
+    <!-- Modal for Street Content -->
+    <div id="streetModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Gatuinformation</h3>
+                <button class="close-modal"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <iframe id="contentFrame" src="" frameborder="0"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
