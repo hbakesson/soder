@@ -51,61 +51,72 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Open Modal
-    window.openStreet = async (id) => {
+    window.openStreet = (id) => {
         const street = streetData.find(s => s.id === id);
         if (!street) return;
 
         modalTitle.textContent = street.name;
         const streetDetails = document.getElementById('streetDetails');
-        streetDetails.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
         streetModal.classList.add('active');
         document.body.style.overflow = 'hidden';
 
-        try {
-            const response = await fetch(street.path);
-            const html = await response.text();
-            
-            // Parse the HTML
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            
-            // Extract the main content (usually inside <BODY> or a <TABLE>)
-            const content = doc.body;
-            
-            // Standardize paths for images and links
-            const folderPath = street.id === '.' ? 'sodermalm.one/' : street.path.substring(0, street.path.lastIndexOf('/') + 1);
-            
-            // Fix images
-            content.querySelectorAll('img').forEach(img => {
-                const src = img.getAttribute('src');
-                if (src && !src.startsWith('http') && !src.startsWith('/')) {
-                    img.src = folderPath + src;
-                }
-                // Remove fixed widths/heights to allow CSS to control them
-                img.removeAttribute('width');
-                img.removeAttribute('height');
-                img.removeAttribute('border');
-                img.removeAttribute('hspace');
-                img.removeAttribute('vspace');
-            });
-            
-            // Fix links
-            content.querySelectorAll('a').forEach(a => {
-                const href = a.getAttribute('href');
-                if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('#')) {
-                    a.href = folderPath + href;
-                }
-            });
+        if (!street.content) {
+            streetDetails.innerHTML = '<p class="error">Ingen detaljinformation tillgänglig för denna gata.</p>';
+            return;
+        }
 
-            // Clean up the content (remove tables but keep inner content)
-            // A simple way is to just take the innerHTML of body but we want to be cleaner
-            // We'll remove original layout tables but keep their content
-            const cleanedHTML = content.innerHTML;
-            streetDetails.innerHTML = cleanedHTML;
-            
-        } catch (error) {
-            console.error('Error fetching street details:', error);
-            streetDetails.innerHTML = '<p class="error">Kunde inte ladda detaljinformation.</p>';
+        // Parse the pre-loaded HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(street.content, 'text/html');
+        const content = doc.body;
+        
+        // Standardize paths for images and links
+        const folderPath = street.path.substring(0, street.path.lastIndexOf('/') + 1);
+        
+        // Fix images and strip attributes
+        content.querySelectorAll('img').forEach(img => {
+            const src = img.getAttribute('src');
+            if (src && !src.startsWith('http') && !src.startsWith('/')) {
+                img.src = folderPath + src;
+            }
+            img.removeAttribute('width');
+            img.removeAttribute('height');
+            img.removeAttribute('border');
+            img.removeAttribute('hspace');
+            img.removeAttribute('vspace');
+        });
+        
+        // Fix links
+        content.querySelectorAll('a').forEach(a => {
+            const href = a.getAttribute('href');
+            if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('#')) {
+                a.href = folderPath + href;
+            }
+        });
+
+        // Cleaning Logic: Flatten the structure by extracting text and images
+        // We want to avoid nested tables but keep the flow
+        const cleanContainer = document.createElement('div');
+        
+        // Extract all meaningful elements in order
+        const elements = content.querySelectorAll('p, img, h1, h2, h3, font, b, center');
+        
+        if (elements.length > 0) {
+            elements.forEach(el => {
+                // If it's an image, just append it
+                if (el.tagName === 'IMG') {
+                    cleanContainer.appendChild(el.cloneNode(true));
+                } else if (el.textContent.trim().length > 0) {
+                    // For text elements, wrap them in clean tags if needed
+                    const p = document.createElement('p');
+                    p.innerHTML = el.innerHTML;
+                    cleanContainer.appendChild(p);
+                }
+            });
+            streetDetails.innerHTML = cleanContainer.innerHTML;
+        } else {
+            // Fallback for very simple pages
+            streetDetails.innerHTML = content.innerHTML;
         }
     };
 

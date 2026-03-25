@@ -94,21 +94,39 @@ for item in sorted(os.listdir(root_dir)):
         
         # Priority for main page selection
         candidates = [f"{item}.html", f"{item}.htm", "index.html", "index.htm"]
+        main_file_name = None
         for cand in candidates:
             if cand in html_files:
+                main_file_name = cand
                 main_html = f"{data_subdir}/{item}/{cand}"
                 break
         
         if not main_html and html_files:
             html_files.sort(key=len)
-            main_html = f"{data_subdir}/{item}/{html_files[0]}"
+            main_file_name = html_files[0]
+            main_html = f"{data_subdir}/{item}/{main_file_name}"
             
-        if main_html:
+        if main_html and main_file_name:
+            # Read the HTML content to avoid CORS fetch issues
+            html_content = ""
+            try:
+                full_html_path = os.path.join(item_path, main_file_name)
+                # Try UTF-8 first, fallback to ISO-8859-1 (common in legacy Swedish webs)
+                try:
+                    with open(full_html_path, "r", encoding="utf-8") as hf:
+                        html_content = hf.read()
+                except UnicodeDecodeError:
+                    with open(full_html_path, "r", encoding="iso-8859-1") as hf:
+                        html_content = hf.read()
+            except Exception as e:
+                print(f"Error reading {main_html}: {e}")
+
             entries.append({
                 "id": item,
                 "name": format_name(item),
                 "path": main_html,
-                "image": main_image
+                "image": main_image,
+                "content": html_content # Store raw content
             })
 
 # Output as JavaScript file to avoid CORS issues
@@ -116,4 +134,4 @@ js_content = f"const STREET_DATA = {json.dumps(entries, ensure_ascii=False, inde
 with open(os.path.join(base_dir, "data.js"), "w", encoding="utf-8") as f:
     f.write(js_content)
 
-print(f"Extracted {len(entries)} entries to data.js.")
+print(f"Extracted {len(entries)} entries with content to data.js.")
