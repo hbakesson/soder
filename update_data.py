@@ -61,15 +61,31 @@ def format_name(name):
         "skanegatanostnytgt": "Skånegatan",
         "slussen": "Slussen",
         "sodermannagatan": "Södermannagatan",
+        "stpaulsgatan": "Sankt Paulsgatan",
+        "skaraborgsgatan": "Skaraborgsgatan",
+        "skinnarviksberget": "Skinnarviksberget",
+        "stadsgarden": "Stadsgården",
+        "stigberget": "Stigberget",
+        "stigbergsgatan": "Stigbergsgatan",
+        "swedenborgsgatan": "Swedenborgsgatan",
+        "tavastgatan": "Tavastgatan",
+        "timmermansgatan": "Timmermansgatan",
+        "tjarhovsgatan": "Tjärhovsgatan",
+        "tjarhovsgmellgotgrenstj": "Tjärhovsgatan",
+        "torkelknutssonsgatan": "Torkel Knutssonsgatan",
+        "vastgotagatan": "Västgötagatan",
         "vitabergen": "Vita Bergen",
         "wollmaryxkullsgatan": "Wollmar Yxkullsgatan",
+        "gatorbyggnplats": "Gator och Byggnadsplatser",
     }
     
     if name in special:
         return special[name]
         
-    res = name.replace("gatan", " gatan").replace("grand", " gränd").replace("vagen", " vägen").replace("berget", " berget")
-    res = re.sub(r'([a-z])([A-Z])', r'\1 \2', res)
+    # Heuristic for other names
+    res = name
+    # Ensure Swedish characters are handled if possible, though IDs are usually ASCII
+    # Basic capitalization
     return res.capitalize()
 
 if not os.path.exists(root_dir):

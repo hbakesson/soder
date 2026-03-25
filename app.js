@@ -43,8 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Search/Filter logic
     streetSearch.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase();
-        const filteredData = streetData.filter(street => 
-            street.name.toLowerCase().includes(searchTerm) || 
+        const filteredData = streetData.filter(street =>
+            street.name.toLowerCase().includes(searchTerm) ||
             street.id.toLowerCase().includes(searchTerm)
         );
         renderStreets(filteredData);
@@ -69,10 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(street.content, 'text/html');
         const content = doc.body;
-        
+
         // Standardize paths for images and links
         const folderPath = street.path.substring(0, street.path.lastIndexOf('/') + 1);
-        
+
         // Fix images and strip attributes
         content.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src');
@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
             img.removeAttribute('hspace');
             img.removeAttribute('vspace');
         });
-        
+
         // Fix links
         content.querySelectorAll('a').forEach(a => {
             const href = a.getAttribute('href');
@@ -97,10 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Cleaning Logic: Flatten the structure by extracting text and images
         // We want to avoid nested tables but keep the flow
         const cleanContainer = document.createElement('div');
-        
+
         // Extract all meaningful elements in order
         const elements = content.querySelectorAll('p, img, h1, h2, h3, font, b, center');
-        
+
         if (elements.length > 0) {
             elements.forEach(el => {
                 // If it's an image, just append it
