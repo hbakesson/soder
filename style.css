@@ -267,12 +267,64 @@ main {
 
 .modal-body {
     flex: 1;
-    background: #fff; /* Original content may expect light background */
+    background: var(--primary-bg);
+    overflow-y: auto;
+    padding: 2rem;
 }
 
-.modal-body iframe {
+.street-details-content {
+    max-width: 800px;
+    margin: 0 auto;
+    color: var(--text-primary);
+}
+
+.street-details-content img {
     width: 100%;
-    height: 100%;
+    height: auto;
+    border-radius: 0.75rem;
+    margin: 2rem 0 1rem 0;
+    box-shadow: var(--card-shadow);
+    display: block;
+}
+
+.street-details-content p {
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+    line-height: 1.8;
+    color: var(--text-secondary);
+}
+
+.street-details-content h1, 
+.street-details-content h2, 
+.street-details-content h3 {
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.street-details-content font {
+    font-family: inherit !important;
+    font-size: 0.9rem !important;
+    color: var(--text-secondary) !important;
+    display: block;
+    margin-top: -0.5rem;
+    margin-bottom: 2rem;
+    font-style: italic;
+}
+
+.street-details-content center {
+    text-align: left;
+}
+
+.street-details-content a {
+    color: var(--accent-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: var(--transition);
+}
+
+.street-details-content a:hover {
+    border-bottom-color: var(--accent-color);
 }
 
 /* Footer Styles */

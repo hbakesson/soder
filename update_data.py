@@ -89,13 +89,17 @@ for item in sorted(os.listdir(root_dir)):
         elif images:
             main_image = f"{data_subdir}/{item}/{images[0]}"
             
-        html_files = [f for f in os.listdir(item_path) if f.lower().endswith('.html')]
+        html_files = [f for f in os.listdir(item_path) if f.lower().endswith(('.html', '.htm'))]
         main_html = None
-        if f"{item}.html" in html_files:
-            main_html = f"{data_subdir}/{item}/{item}.html"
-        elif "index.html" in html_files:
-            main_html = f"{data_subdir}/{item}/index.html"
-        elif html_files:
+        
+        # Priority for main page selection
+        candidates = [f"{item}.html", f"{item}.htm", "index.html", "index.htm"]
+        for cand in candidates:
+            if cand in html_files:
+                main_html = f"{data_subdir}/{item}/{cand}"
+                break
+        
+        if not main_html and html_files:
             html_files.sort(key=len)
             main_html = f"{data_subdir}/{item}/{html_files[0]}"
             

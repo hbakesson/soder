@@ -192,10 +192,28 @@ const STREET_DATA = [
     "image": "sodermalm.one/hogalid/killekarta1902x.jpg"
   },
   {
+    "id": "hogbergsgost",
+    "name": "Högbergsgatan (Öst)",
+    "path": "sodermalm.one/hogbergsgost/hogbergsgost.htm",
+    "image": "sodermalm.one/hogbergsgost/hgbg16gardmotoster.jpg"
+  },
+  {
     "id": "hogbergsgvast",
     "name": "Högbergsgatan (Väst)",
     "path": "sodermalm.one/hogbergsgvast/hogbergsgvast.html",
     "image": "sodermalm.one/hogbergsgvast/hgbg72_70.jpg"
+  },
+  {
+    "id": "hornsgatan",
+    "name": "Hornsgatan",
+    "path": "sodermalm.one/hornsgatan/hornsgatan.htm",
+    "image": "sodermalm.one/hornsgatan/hornsgnutid2005.jpg"
+  },
+  {
+    "id": "hornsgatanostsoder",
+    "name": "Hornsgatan (Öst/Söder)",
+    "path": "sodermalm.one/hornsgatanostsoder/hornsgatanostsoder.htm",
+    "image": "sodermalm.one/hornsgatanostsoder/lusthus2.jpg"
   },
   {
     "id": "josabeth",
@@ -204,10 +222,28 @@ const STREET_DATA = [
     "image": "sodermalm.one/josabeth/renstiernasg3.jpg"
   },
   {
+    "id": "katarina",
+    "name": "Katarina",
+    "path": "sodermalm.one/katarina/katarina.htm",
+    "image": "sodermalm.one/katarina/bgkatarinax.jpg"
+  },
+  {
+    "id": "katarinanordvast",
+    "name": "Katarinanordvast",
+    "path": "sodermalm.one/katarinanordvast/katarinanordvast.htm",
+    "image": "sodermalm.one/katarinanordvast/mosebacketerrassen1840.jpg"
+  },
+  {
     "id": "kocksgatan",
     "name": "Kocksgatan",
     "path": "sodermalm.one/kocksgatan/kocksgatan.html",
     "image": "sodermalm.one/kocksgatan/kocksg27froster.jpg"
+  },
+  {
+    "id": "kristallen",
+    "name": "Kristallen",
+    "path": "sodermalm.one/kristallen/kristallen.htm",
+    "image": "sodermalm.one/kristallen/neuhaus.jpg"
   },
   {
     "id": "krukmakargatan",
@@ -240,6 +276,12 @@ const STREET_DATA = [
     "image": "sodermalm.one/lillaersta/renstiernasg3.jpg"
   },
   {
+    "id": "lillaskinnarviksgrand",
+    "name": "Lillaskinnarviks gränd",
+    "path": "sodermalm.one/lillaskinnarviksgrand/lillaskinnarviksgrand.htm",
+    "image": "sodermalm.one/lillaskinnarviksgrand/neuhaus1873.jpg"
+  },
+  {
     "id": "malmgardsvagen",
     "name": "Malmgards vägen",
     "path": "sodermalm.one/malmgardsvagen/nr55.html",
@@ -250,6 +292,12 @@ const STREET_DATA = [
     "name": "Mariaberget",
     "path": "sodermalm.one/mariaberget/mariaberget.html",
     "image": "sodermalm.one/mariaberget/bgmbvyxx.jpg"
+  },
+  {
+    "id": "mariatrappgrand",
+    "name": "Mariatrapp gränd",
+    "path": "sodermalm.one/mariatrappgrand/mariatrappgrand.htm",
+    "image": "sodermalm.one/mariatrappgrand/karta1885.jpg"
   },
   {
     "id": "mastermikael",
@@ -302,8 +350,14 @@ const STREET_DATA = [
   {
     "id": "pryssgrand",
     "name": "Pryss gränd",
-    "path": "sodermalm.one/pryssgrand/sepapryssgr.html",
+    "path": "sodermalm.one/pryssgrand/pryssgrand.htm",
     "image": "sodermalm.one/pryssgrand/pryssgrbastug.jpg"
+  },
+  {
+    "id": "pustegrand",
+    "name": "Puste gränd",
+    "path": "sodermalm.one/pustegrand/pustegrand.htm",
+    "image": "sodermalm.one/pustegrand/pustegr2.jpg"
   },
   {
     "id": "ragvaldsgatan",
@@ -430,6 +484,12 @@ const STREET_DATA = [
     "name": "Tjarhovs gatan",
     "path": "sodermalm.one/tjarhovsgatan/tjarhovsgatan.html",
     "image": "sodermalm.one/tjarhovsgatan/tjarhovsgatanbilder.jpg"
+  },
+  {
+    "id": "tjarhovsgmellgotgrenstj",
+    "name": "Tjarhovsgmellgotgrenstj",
+    "path": "sodermalm.one/tjarhovsgmellgotgrenstj/tjarhovsgmellgotgrenstj.htm",
+    "image": "sodermalm.one/tjarhovsgmellgotgrenstj/tjarhovsg16_18.jpg"
   },
   {
     "id": "torkelknutssonsgatan",
