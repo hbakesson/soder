@@ -51,20 +51,68 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Open Modal
-    window.openStreet = (id) => {
+    window.openStreet = async (id) => {
         const street = streetData.find(s => s.id === id);
         if (!street) return;
 
         modalTitle.textContent = street.name;
-        contentFrame.src = street.path;
+        const streetDetails = document.getElementById('streetDetails');
+        streetDetails.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
         streetModal.classList.add('active');
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        document.body.style.overflow = 'hidden';
+
+        try {
+            const response = await fetch(street.path);
+            const html = await response.text();
+            
+            // Parse the HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Extract the main content (usually inside <BODY> or a <TABLE>)
+            const content = doc.body;
+            
+            // Standardize paths for images and links
+            const folderPath = street.id === '.' ? 'sodermalm.one/' : street.path.substring(0, street.path.lastIndexOf('/') + 1);
+            
+            // Fix images
+            content.querySelectorAll('img').forEach(img => {
+                const src = img.getAttribute('src');
+                if (src && !src.startsWith('http') && !src.startsWith('/')) {
+                    img.src = folderPath + src;
+                }
+                // Remove fixed widths/heights to allow CSS to control them
+                img.removeAttribute('width');
+                img.removeAttribute('height');
+                img.removeAttribute('border');
+                img.removeAttribute('hspace');
+                img.removeAttribute('vspace');
+            });
+            
+            // Fix links
+            content.querySelectorAll('a').forEach(a => {
+                const href = a.getAttribute('href');
+                if (href && !href.startsWith('http') && !href.startsWith('/') && !href.startsWith('#')) {
+                    a.href = folderPath + href;
+                }
+            });
+
+            // Clean up the content (remove tables but keep inner content)
+            // A simple way is to just take the innerHTML of body but we want to be cleaner
+            // We'll remove original layout tables but keep their content
+            const cleanedHTML = content.innerHTML;
+            streetDetails.innerHTML = cleanedHTML;
+            
+        } catch (error) {
+            console.error('Error fetching street details:', error);
+            streetDetails.innerHTML = '<p class="error">Kunde inte ladda detaljinformation.</p>';
+        }
     };
 
     // Close Modal
     function closeStreetModal() {
         streetModal.classList.remove('active');
-        contentFrame.src = '';
+        document.getElementById('streetDetails').innerHTML = '';
         document.body.style.overflow = 'auto';
     }
 
