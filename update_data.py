@@ -78,6 +78,7 @@ def format_name(name):
         "wollmaryxkullsgatan": "Wollmar Yxkullsgatan",
         "gatorbyggnplats": "Gator och Byggnadsplatser",
         "ettbergvidvattnet": "Ett berg vid vattnet",
+        "forensodermalm": "Föreningen Södermalm",
     }
     
     if name in special:

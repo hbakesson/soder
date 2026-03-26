@@ -176,7 +176,7 @@ const STREET_DATA = [
   },
   {
     "id": "forensodermalm",
-    "name": "Forensodermalm",
+    "name": "Föreningen Södermalm",
     "path": "sodermalm.one/forensodermalm/forensodermalm.html",
     "image": "sodermalm.one/forensodermalm/info2a.jpg",
     "content": "<!DOCTYPE html>\n<html lang=\"sv\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Södermalm i tid och rum</title>\n    <link rel=\"stylesheet\" href=\"../../style.css\">\n</head>\n<body class=\"modern-article\">\n    <article>\n        <h1>Södermalm i tid och rum</h1>\n        <p>\nI övrigt finns ingen koppling mellan denna webbplats och föreningen.<p>\n<i>Bengt Jönsson\n</i>\n<br/>\n<br/>\n<br/>\n<a href=\"43.html\"><img alt=\"pilhoger.jpg\" hspace=\"0\" src=\"pilhoger.jpg\" vspace=\"0\"/></a>     <font><font>Medlemsblad 2003\n</font></font>\n</p></p>\n        <figure><img src=\"info1.jpg\" alt=\"info1.jpg\"></figure>\n        <figure><img src=\"info2a.jpg\" alt=\"info2a.jpg\"></figure>\n        <figure><img src=\"info2b.jpg\" alt=\"info2b.jpg\"></figure>\n        <figure><img src=\"info4.jpg\" alt=\"info4.jpg\"></figure>\n        <figure><img src=\"info5.jpg\" alt=\"info5.jpg\"></figure>\n    </article>\n</body>\n</html>"
