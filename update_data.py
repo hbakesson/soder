@@ -124,17 +124,12 @@ for item in sorted(os.listdir(root_dir)):
             main_html = f"{data_subdir}/{item}/{main_file_name}"
             
         if main_html and main_file_name:
-            # Read the HTML content to avoid CORS fetch issues
+            # Read the HTML content (now all modernized UTF-8)
             html_content = ""
             try:
                 full_html_path = os.path.join(item_path, main_file_name)
-                # Try UTF-8 first, fallback to ISO-8859-1 (common in legacy Swedish webs)
-                try:
-                    with open(full_html_path, "r", encoding="utf-8") as hf:
-                        html_content = hf.read()
-                except UnicodeDecodeError:
-                    with open(full_html_path, "r", encoding="iso-8859-1") as hf:
-                        html_content = hf.read()
+                with open(full_html_path, "r", encoding="utf-8") as hf:
+                    html_content = hf.read()
             except Exception as e:
                 print(f"Error reading {main_html}: {e}")
 
@@ -150,13 +145,8 @@ for item in sorted(os.listdir(root_dir)):
             # Special case for "Ett berg vid vattnet" in stigberget directory
             if item == "stigberget" and os.path.exists(os.path.join(item_path, "bergvidvattnet.html")):
                 try:
-                    # Try UTF-8 first for the modernized version
-                    try:
-                        with open(os.path.join(item_path, "bergvidvattnet.html"), "r", encoding="utf-8") as hf:
-                            bv_content = hf.read()
-                    except UnicodeDecodeError:
-                        with open(os.path.join(item_path, "bergvidvattnet.html"), "r", encoding="iso-8859-1") as hf:
-                            bv_content = hf.read()
+                    with open(os.path.join(item_path, "bergvidvattnet.html"), "r", encoding="utf-8") as hf:
+                        bv_content = hf.read()
                             
                     entries.append({
                         "id": "ettbergvidvattnet",
