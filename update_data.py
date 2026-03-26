@@ -150,8 +150,14 @@ for item in sorted(os.listdir(root_dir)):
             # Special case for "Ett berg vid vattnet" in stigberget directory
             if item == "stigberget" and os.path.exists(os.path.join(item_path, "bergvidvattnet.html")):
                 try:
-                    with open(os.path.join(item_path, "bergvidvattnet.html"), "r", encoding="iso-8859-1") as hf:
-                        bv_content = hf.read()
+                    # Try UTF-8 first for the modernized version
+                    try:
+                        with open(os.path.join(item_path, "bergvidvattnet.html"), "r", encoding="utf-8") as hf:
+                            bv_content = hf.read()
+                    except UnicodeDecodeError:
+                        with open(os.path.join(item_path, "bergvidvattnet.html"), "r", encoding="iso-8859-1") as hf:
+                            bv_content = hf.read()
+                            
                     entries.append({
                         "id": "ettbergvidvattnet",
                         "name": "Ett berg vid vattnet",

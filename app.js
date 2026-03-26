@@ -99,13 +99,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const cleanContainer = document.createElement('div');
 
         // Extract all meaningful elements in order
-        const elements = content.querySelectorAll('p, img, h1, h2, h3, font, b, center');
+        const elements = content.querySelectorAll('p, img, h1, h2, h3, font, b, center, article, section, figure, figcaption');
 
         if (elements.length > 0) {
             elements.forEach(el => {
-                // If it's an image, just append it
-                if (el.tagName === 'IMG') {
+                // If it's an image or figure, append it as-is (clean version)
+                if (el.tagName === 'IMG' || el.tagName === 'FIGURE' || el.tagName === 'ARTICLE' || el.tagName === 'SECTION') {
                     cleanContainer.appendChild(el.cloneNode(true));
+                } else if (el.tagName === 'FIGCAPTION') {
+                    const figcap = document.createElement('font'); // Fallback for caption styling
+                    figcap.innerHTML = el.innerHTML;
+                    cleanContainer.appendChild(figcap);
                 } else if (el.textContent.trim().length > 0) {
                     // For text elements, wrap them in clean tags if needed
                     const p = document.createElement('p');
