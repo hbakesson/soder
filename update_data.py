@@ -77,6 +77,7 @@ def format_name(name):
         "vitabergen": "Vita Bergen",
         "wollmaryxkullsgatan": "Wollmar Yxkullsgatan",
         "gatorbyggnplats": "Gator och Byggnadsplatser",
+        "ettbergvidvattnet": "Ett berg vid vattnet",
     }
     
     if name in special:
@@ -137,13 +138,29 @@ for item in sorted(os.listdir(root_dir)):
             except Exception as e:
                 print(f"Error reading {main_html}: {e}")
 
+            # Add the main entry
             entries.append({
                 "id": item,
                 "name": format_name(item),
                 "path": main_html,
                 "image": main_image,
-                "content": html_content # Store raw content
+                "content": html_content
             })
+            
+            # Special case for "Ett berg vid vattnet" in stigberget directory
+            if item == "stigberget" and os.path.exists(os.path.join(item_path, "bergvidvattnet.html")):
+                try:
+                    with open(os.path.join(item_path, "bergvidvattnet.html"), "r", encoding="iso-8859-1") as hf:
+                        bv_content = hf.read()
+                    entries.append({
+                        "id": "ettbergvidvattnet",
+                        "name": "Ett berg vid vattnet",
+                        "path": f"{data_subdir}/{item}/bergvidvattnet.html",
+                        "image": f"{data_subdir}/{item}/soderfrskeppsbr1a.jpg",
+                        "content": bv_content
+                    })
+                except Exception as e:
+                    print(f"Error reading bergvidvattnet.html: {e}")
 
 # Output as JavaScript file to avoid CORS issues
 js_content = f"const STREET_DATA = {json.dumps(entries, ensure_ascii=False, indent=2)};"
