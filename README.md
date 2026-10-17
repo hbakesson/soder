@@ -1,49 +1,54 @@
-# Södermalm.one - Upptäck gatorna
+# Södermalm i tid och rum
 
-En modern, interaktiv guide till Södermalms gator och historia. Den här webbplatsen är en moderniserad version av det omfattande historiska material samlat av Bengt-Göran Jönsson.
+En läsvänlig guide till Södermalms gator, gränder, berg och människor, byggd på det historiska material som Bengt-Göran Jönsson har sammanställt.
 
-![Södermalm Website Preview](sodermalm_website_preview.png)
+![Startsidan](preview.jpg)
 
-## 🏙 Om projektet
-Projektet syftar till att göra det rika historiska materialet om Södermalms gator mer tillgängligt genom ett modernt, responsivt gränssnitt. 
+## Om projektet
 
-### Funktioner
-- **Interaktivt gaturutnät**: Utforska 76 olika gator och områden på Södermalm.
-- **Blixtsnabb sökning**: Hitta rätt gata direkt via sökfältet.
-- **Modern estetik**: Mörkt tema med "glassmorphism", mjuka animationer och premium-typografi.
-- **Originalinnehåll**: Det historiska materialet visas i ett snyggt modalfönster för en sömlös upplevelse.
+Originalwebbplatsen består av drygt 500 HTML-sidor från tidigt 2000-tal, med tabellayout, `<font>`-taggar och små miniatyrbilder. Den här versionen behåller allt innehåll men ger det en ny struktur:
 
-## 🛠 Teknik stack
-- **HTML5/CSS3**: Modern layout med CSS Grid och glassmorphism.
-- **Vanilla JavaScript**: Snabb och lättviktig interaktivitet utan externa ramverk (förutom Phosphor Icons).
-- **Python**: Automatiserad datainsamling och indexering.
+- **Text och bild hör ihop.** Varje bild visas med sin bildtext, och bilder som stod bredvid ett stycke i originalet visas fortfarande bredvid det stycket (på mobilen direkt efter det).
+- **Riktig typografi.** Stycken, rubriker, källhänvisningar och notiser känns igen och får var sin stil. Serif för läsning, mörkt läge och utskriftsläge.
+- **Alla 520 sidor nås.** Varje plats har en innehållsförteckning och bläddring mellan sidorna. Klickbara kartor fungerar, med en lista under kartan för mobilen.
+- **Sök** (⌘K eller `/`) på platser, sidtitlar, underrubriker och personnamn.
+- **Bildvisning** i full storlek med svep, tangentbord och zoom.
+- **Fungerar på iOS och webb**, med säkra marginaler, stora tryckytor och snabb laddning (innehållet hämtas per plats först när det behövs).
 
-## 🚀 Komma igång
-Eftersom detta är en helt statisk webbplats kan du köra den på två sätt:
+## Komma igång
 
-1. **Direkt i webbläsaren**: Dubbelklicka på `index.html` i din filhanterare. Webbsidan är optimerad för att fungera direkt från filsystemet.
-2. **Via en webbserver**: Kör en enkel server i projektmappen, till exempel:
-   ```bash
-   python3 -m http.server
-   ```
-   Öppna sedan `http://localhost:8000` i din webbläsare.
-
-## 🔄 Uppdatera data
-Om du lägger till nya gatumappar under `sodermalm.one/` kan du automatiskt uppdatera webbplatsens index genom att köra:
+Webbplatsen är helt statisk. Öppna `index.html` direkt i webbläsaren, eller starta en lokal server:
 
 ```bash
-python3 update_data.py
+python3 -m http.server
 ```
 
-Detta skript skannar alla mappar, letar efter representativa bilder och HTML-sidor, och uppdaterar `data.js` automatiskt.
+Öppna sedan `http://localhost:8000`.
 
-## 📂 Filstruktur
-- `index.html`: Landningssidan.
-- `style.css`: All styling och design.
-- `app.js`: Logik för sökning och rendering.
-- `data.js`: Innehåller all indexerad gatuinformation (genereras av Python-skriptet).
-- `update_data.py`: Hjälpskript för att uppdatera indexet.
-- `sodermalm.one/`: Mappen som innehåller allt originalinnehåll (bilder och HTML).
+## Uppdatera innehållet
+
+Innehållet byggs från originalsidorna i `source/` och bilderna i `sodermalm.one/`:
+
+```bash
+python3 build.py
+```
+
+Skriptet kräver `beautifulsoup4` och `lxml` (`pip3 install beautifulsoup4 lxml`). Det läser varje originalsida, tolkar den gamla layouten, kopplar ihop bilder med bildtexter och text, rättar länkar (även skiftläge i filnamn, så att allt fungerar på GitHub Pages) och skriver resultatet till `data/`.
+
+Platsnamn, kategorier, utvalda platser och kortbilder ställs in överst i `build.py`.
+
+## Filstruktur
+
+| Sökväg | Innehåll |
+|---|---|
+| `index.html` | Sidans skal: toppfält, sidfot, sök och bildvisning |
+| `style.css` | Designsystemet: färger, typografi, layout, ljust och mörkt läge |
+| `app.js` | Routing, vyer, sök och bildvisning |
+| `build.py` | Bygger `data/` från originalarkivet |
+| `data/index.js` | Platser, sidtitlar, utdrag och sökord (laddas direkt) |
+| `data/places/*.js` | Sidinnehållet per plats (laddas vid behov) |
+| `source/` | Originalsidorna, orörda, som källa för bygget |
+| `sodermalm.one/` | Alla bilder från originalwebbplatsen |
 
 ---
-*Sammanställt och moderniserat för att bevara Södermalms historia.*
+*Sammanställt av Bengt-Göran Jönsson. Moderniserat för att bevara Södermalms historia.*
