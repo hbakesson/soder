@@ -1135,43 +1135,15 @@
         return parts;
     }
 
-    /* Vänta tills webbläsaren har laddat sina röster (iOS gör det asynkront) */
-    function waitForVoices(ms) {
-        return new Promise(function (resolve) {
-            var synth = window.speechSynthesis;
-            if (synth.getVoices().length) { resolve(); return; }
-            var done = false;
-            function finish() { if (!done) { done = true; resolve(); } }
-            if (synth.addEventListener) synth.addEventListener('voiceschanged', finish, { once: true });
-            var t0 = Date.now();
-            (function poll() {
-                if (done) return;
-                if (synth.getVoices().length || Date.now() - t0 > ms) finish();
-                else setTimeout(poll, 100);
-            })();
-        });
-    }
+    var IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        (/Macintosh/.test(navigator.userAgent) && 'ontouchend' in document);
 
+    /* Startas direkt i trycket. iOS spelar bara upp tal som startas
+       synkront i en användarhandling, inte efter en väntan. */
     function startReading() {
         if (!TTS_OK) return;
         var synth = window.speechSynthesis;
-        synth.cancel();
-        // iOS: talsyntesen måste "låsas upp" direkt i trycket, innan vi väntar på rösterna
-        try {
-            var unlock = new SpeechSynthesisUtterance(' ');
-            unlock.lang = 'sv-SE';
-            unlock.volume = 0;
-            synth.speak(unlock);
-        } catch (e) { }
-        document.getElementById('ttsTitle').textContent = document.title.split(' · ')[0];
-        document.getElementById('ttsStatus').textContent = 'Hämtar svensk röst …';
-        ttsBar.classList.remove('tts-msg');
-        ttsBar.hidden = false;
-        document.body.classList.add('tts-on');
-        waitForVoices(2000).then(function () { beginReading(); });
-    }
-
-    function beginReading() {
+        if (synth.speaking || synth.pending) synth.cancel();
         var voice = swedishVoice();
         if (voice === false) {
             showTtsMessage();
@@ -1183,7 +1155,11 @@
         tts.follow = true;
         if (!tts.parts.length) return;
         tts.playing = true;
-        speakCurrent();   // köas efter upplåsningen, ingen cancel här (Chrome tappar då nästa uppläsning)
+        document.getElementById('ttsTitle').textContent = document.title.split(' · ')[0];
+        ttsBar.classList.remove('tts-msg');
+        ttsBar.hidden = false;
+        document.body.classList.add('tts-on');
+        speakCurrent();
     }
 
     function speakCurrent() {
@@ -1216,8 +1192,10 @@
     function restartCurrent() {
         tts.current = null;
         window.speechSynthesis.cancel();
-        if (tts.playing) setTimeout(speakCurrent, 60);   // Chrome behöver ett ögonblick efter cancel
-        else updateTtsBar();
+        if (!tts.playing) { updateTtsBar(); return; }
+        // iOS: måste ske direkt i trycket. Chrome: behöver ett ögonblick efter cancel.
+        if (IS_IOS) speakCurrent();
+        else setTimeout(speakCurrent, 60);
     }
 
     function markPart(part) {
