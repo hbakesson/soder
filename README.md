@@ -12,6 +12,7 @@ Originalwebbplatsen består av drygt 500 HTML-sidor från tidigt 2000-tal, med t
 - **Riktig typografi.** Stycken, rubriker, källhänvisningar och notiser känns igen och får var sin stil. Serif för läsning, mörkt läge och utskriftsläge.
 - **Alla 520 sidor nås.** Varje plats har en innehållsförteckning och bläddring mellan sidorna. Klickbara kartor fungerar, med en lista under kartan för mobilen.
 - **Karta** över Södermalm där gatorna är inritade och varje plats har en prick. Tryck på en gata eller prick för att se sidorna om den och alla artiklar där den nämns, med citat. Även gator utan egen sida är klickbara.
+- **Lyssna**: varje artikel kan läsas upp på svenska med webbläsarens inbyggda talsyntes (t.ex. rösten Alva på iPhone, iPad och Mac). Stycket som läses markeras, och spelaren har paus, stycke framåt/bakåt och hastighet.
 - **Sök** (⌘K eller `/`) på platser, sidtitlar, underrubriker och personnamn.
 - **Bildvisning** i full storlek med svep, tangentbord och zoom.
 - **Fungerar på iOS och webb**, med säkra marginaler, stora tryckytor och snabb laddning (innehållet hämtas per plats först när det behövs).

@@ -19,7 +19,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=f74561bcc1">
+    <link rel="stylesheet" href="style.css?v=c3455f09ec">
 </head>
 
 <body>
@@ -109,6 +109,27 @@
         </div>
     </div>
 
+    <div class="tts-bar" id="ttsBar" role="region" aria-label="Uppläsning" hidden>
+        <button class="tts-btn tts-ctl" type="button" data-action="tts-prev" aria-label="Föregående stycke">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6v12M18 6l-8 6 8 6z" /></svg>
+        </button>
+        <button class="tts-btn tts-play tts-ctl" type="button" data-action="tts-toggle" aria-label="Pausa">
+            <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5.5v13M15.5 5.5v13" /></svg>
+            <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+        </button>
+        <button class="tts-btn tts-ctl" type="button" data-action="tts-next" aria-label="Nästa stycke">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 6v12M6 6l8 6-8 6z" /></svg>
+        </button>
+        <div class="tts-info">
+            <span class="tts-title" id="ttsTitle"></span>
+            <span class="tts-status" id="ttsStatus" aria-live="polite"></span>
+        </div>
+        <button class="tts-rate tts-ctl" type="button" data-action="tts-rate" aria-label="Ändra hastighet">1×</button>
+        <button class="tts-btn" type="button" data-action="tts-stop" aria-label="Stäng uppläsning">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+    </div>
+
     <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Bildvisning" hidden>
         <div class="lb-stage" id="lbStage"></div>
         <div class="lb-bar lb-top">
@@ -128,7 +149,7 @@
 
     <script src="data/geo.js?v=7a16242922"></script>
     <script src="data/index.js?v=9947a6f856"></script>
-    <script src="app.js?v=54e10e5880"></script>
+    <script src="app.js?v=ed7c3e2d43"></script>
 </body>
 
 </html>

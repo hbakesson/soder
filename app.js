@@ -32,7 +32,8 @@
         arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
         pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
         close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
-        list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"/></svg>'
+        list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"/></svg>',
+        speaker: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>'
     };
 
     /* ------------------------------------------------------------------ */
@@ -183,6 +184,7 @@
         currentHash = location.hash;
         closeMenu();
         closeSearch(true);
+        stopReading();
 
         var r = parseRoute();
         setActiveNav(r);
@@ -501,6 +503,7 @@
             (hasToc ? '<span>' + ICON.pages + 'Sida ' + (pos + 1) + ' av ' + order.length + '</span>' : '') +
             (nImg ? '<span>' + ICON.image + plural(nImg, 'bild', 'bilder') + '</span>' : '') +
             (GEO[place.id] ? '<a class="meta-link" href="#/karta/' + place.id + '">' + ICON.pin + 'Visa på kartan</a>' : '') +
+            listenButton() +
             '</div>';
 
         var heroHtml = '';
@@ -1058,6 +1061,244 @@
     });
 
     /* ------------------------------------------------------------------ */
+    /* Uppläsning (text till tal) – alltid på svenska                       */
+    /* ------------------------------------------------------------------ */
+
+    var TTS_OK = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+    var TTS_RATES = [0.8, 1, 1.25, 1.5];
+    var ttsBar = document.getElementById('ttsBar');
+    var tts = { parts: [], i: 0, playing: false, current: null, voice: null, follow: true, rate: 1, els: [] };
+    (function () {
+        var r = parseFloat(store('soder.ttsRate'));
+        if (TTS_RATES.indexOf(r) > -1) tts.rate = r;
+    })();
+
+    function listenButton() {
+        if (!TTS_OK) return '';
+        return '<button class="meta-link meta-button" type="button" data-action="tts-start">' + ICON.speaker + 'Lyssna</button>';
+    }
+
+    /* Bästa svenska röst: förbättrad/premium > Google > lokal */
+    function swedishVoice() {
+        var voices = window.speechSynthesis.getVoices();
+        var sv = voices.filter(function (v) { return /^sv([-_]|$)/i.test(v.lang); });
+        if (!sv.length) return voices.length ? false : null;   // false = inga svenska, null = inte laddade än
+        function score(v) {
+            return (/enhanced|premium|förbättrad|siri/i.test(v.name) ? 4 : 0) +
+                (/google/i.test(v.name) ? 2 : 0) + (v.localService ? 1 : 0) + (/^sv-SE/i.test(v.lang) ? 1 : 0);
+        }
+        sv.sort(function (a, b) { return score(b) - score(a); });
+        return sv[0];
+    }
+
+    /* Dela text i delar om högst ~200 tecken, helst vid meningsslut */
+    function chunkText(text) {
+        var sentences = text.match(/[^.!?…]+[.!?…»”"')\]]*\s*/g) || [text];
+        var out = [], cur = '';
+        sentences.forEach(function (sen) {
+            while (sen.length > 200) {
+                var cut = sen.lastIndexOf(', ', 200);
+                if (cut < 80) cut = sen.lastIndexOf(' ', 200);
+                if (cut < 40) cut = 200;
+                if (cur) { out.push(cur); cur = ''; }
+                out.push(sen.slice(0, cut + 1));
+                sen = sen.slice(cut + 1);
+            }
+            if ((cur + sen).length > 200 && cur) { out.push(cur); cur = ''; }
+            cur += sen;
+        });
+        if (cur.trim()) out.push(cur);
+        return out.map(function (t) { return t.trim(); }).filter(Boolean);
+    }
+
+    /* Läsordning: titel, rubriker och stycken (inte bildtexter eller länklistor) */
+    function collectSpeechParts() {
+        var parts = [], els = [];
+        var title = main.querySelector('.article-title');
+        var nodes = [title].concat(Array.prototype.slice.call(main.querySelectorAll('.prose h2, .prose h3, .prose p')));
+        nodes.forEach(function (el) {
+            if (!el || el.closest('figure, .links, .map, .pager, .more') || el.classList.contains('empty-state') ||
+                el.classList.contains('map-list-title')) return;
+            var text = el.textContent.replace(/\s+/g, ' ').trim();
+            if (!text) return;
+            if (el.classList.contains('source')) text = text.replace(/^ur\s/i, 'Ur ') + '.';
+            els.push(el);
+            chunkText(text).forEach(function (t) { parts.push({ el: el, n: els.length - 1, text: t }); });
+        });
+        tts.els = els;
+        return parts;
+    }
+
+    function startReading() {
+        if (!TTS_OK) return;
+        var synth = window.speechSynthesis;
+        synth.cancel();
+        var voice = swedishVoice();
+        if (voice === false) {
+            showTtsMessage();
+            return;
+        }
+        tts.voice = voice || null;     // null: rösterna laddas fortfarande – lang sv-SE räcker
+        tts.parts = collectSpeechParts();
+        tts.i = 0;
+        tts.follow = true;
+        if (!tts.parts.length) return;
+        tts.playing = true;
+        document.getElementById('ttsTitle').textContent = document.title.split(' · ')[0];
+        ttsBar.classList.remove('tts-msg');
+        ttsBar.hidden = false;
+        document.body.classList.add('tts-on');
+        speakCurrent();
+    }
+
+    function speakCurrent() {
+        var part = tts.parts[tts.i];
+        if (!part) { finishReading(); return; }
+        if (!tts.voice) {
+            var v = swedishVoice();
+            if (v) tts.voice = v;
+        }
+        var u = new SpeechSynthesisUtterance(part.text);
+        u.lang = 'sv-SE';
+        if (tts.voice) u.voice = tts.voice;
+        u.rate = tts.rate;
+        u.onend = function () {
+            if (u !== tts.current) return;
+            tts.i++;
+            speakCurrent();
+        };
+        u.onerror = function (e) {
+            if (u !== tts.current || e.error === 'interrupted' || e.error === 'canceled') return;
+            tts.i++;
+            speakCurrent();
+        };
+        tts.current = u;
+        markPart(part);
+        updateTtsBar();
+        window.speechSynthesis.speak(u);
+    }
+
+    function restartCurrent() {
+        tts.current = null;
+        window.speechSynthesis.cancel();
+        if (tts.playing) setTimeout(speakCurrent, 60);   // Chrome behöver ett ögonblick efter cancel
+        else updateTtsBar();
+    }
+
+    function markPart(part) {
+        var prev = main.querySelector('.tts-active');
+        if (prev && prev !== part.el) prev.classList.remove('tts-active');
+        part.el.classList.add('tts-active');
+        if (!tts.follow) return;
+        var r = part.el.getBoundingClientRect();
+        var top = (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h'), 10) || 60) + 24;
+        var bottom = window.innerHeight - (ttsBar.offsetHeight || 80) - 24;
+        if (r.top < top || r.bottom > bottom) {
+            window.scrollTo({ top: window.scrollY + r.top - top - 40, behavior: 'smooth' });
+        }
+    }
+
+    function stepElement(d) {
+        if (!tts.parts.length) return;
+        var cur = tts.parts[tts.i] ? tts.parts[tts.i].n : tts.els.length;
+        var target = Math.max(0, Math.min(tts.els.length - 1, cur + d));
+        for (var i = 0; i < tts.parts.length; i++) {
+            if (tts.parts[i].n === target) { tts.i = i; break; }
+        }
+        tts.follow = true;
+        if (!tts.playing) markPart(tts.parts[tts.i]);
+        restartCurrent();
+    }
+
+    function finishReading() {
+        tts.playing = false;
+        tts.current = null;
+        tts.i = 0;
+        var a = main.querySelector('.tts-active');
+        if (a) a.classList.remove('tts-active');
+        updateTtsBar(true);
+    }
+
+    function stopReading() {
+        if (!TTS_OK) return;
+        tts.playing = false;
+        tts.current = null;
+        tts.parts = [];
+        window.speechSynthesis.cancel();
+        var a = document.querySelector('.tts-active');
+        if (a) a.classList.remove('tts-active');
+        if (ttsBar) ttsBar.hidden = true;
+        document.body.classList.remove('tts-on');
+    }
+
+    function updateTtsBar(done) {
+        var part = tts.parts[tts.i];
+        var play = ttsBar.querySelector('[data-action="tts-toggle"]');
+        play.classList.toggle('paused', !tts.playing);
+        play.setAttribute('aria-label', tts.playing ? 'Pausa' : 'Spela');
+        document.getElementById('ttsStatus').textContent = done
+            ? 'Klart – tryck på spela för att börja om'
+            : 'Stycke ' + ((part ? part.n : 0) + 1) + ' av ' + tts.els.length;
+        ttsBar.querySelector('[data-action="tts-rate"]').textContent = String(tts.rate).replace('.', ',') + '×';
+    }
+
+    function showTtsMessage() {
+        var ua = navigator.userAgent;
+        var help = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document)
+            ? 'Inställningar → Hjälpmedel → Talat innehåll → Röster → Svenska.'
+            : /Mac/.test(ua) ? 'Systeminställningar → Hjälpmedel → Talat innehåll → Systemröst → Hantera röster → Svenska.'
+                : /Windows/.test(ua) ? 'Inställningar → Tid och språk → Tal → Lägg till röster → Svenska.'
+                    : 'Installera en svensk röst i enhetens inställningar för tal.';
+        document.getElementById('ttsTitle').textContent = 'Ingen svensk röst hittades';
+        document.getElementById('ttsStatus').textContent = help;
+        ttsBar.classList.add('tts-msg');
+        ttsBar.hidden = false;
+        document.body.classList.add('tts-on');
+    }
+
+    function ttsAction(act) {
+        if (act === 'tts-start') { startReading(); return; }
+        if (act === 'tts-stop') { stopReading(); return; }
+        if (act === 'tts-toggle') {
+            if (!tts.parts.length) { startReading(); return; }
+            tts.playing = !tts.playing;
+            if (tts.playing) {
+                tts.follow = true;
+                if (!tts.parts[tts.i]) tts.i = 0;
+                speakCurrent();
+            } else {
+                tts.current = null;
+                window.speechSynthesis.cancel();
+                updateTtsBar();
+            }
+            return;
+        }
+        if (act === 'tts-prev') { stepElement(-1); return; }
+        if (act === 'tts-next') { stepElement(1); return; }
+        if (act === 'tts-rate') {
+            tts.rate = TTS_RATES[(TTS_RATES.indexOf(tts.rate) + 1) % TTS_RATES.length];
+            store('soder.ttsRate', String(tts.rate));
+            if (tts.parts.length) restartCurrent();
+            updateTtsBar();
+        }
+    }
+
+    if (TTS_OK) {
+        // Rösterna laddas asynkront i vissa webbläsare
+        window.speechSynthesis.getVoices();
+        if (window.speechSynthesis.addEventListener) {
+            window.speechSynthesis.addEventListener('voiceschanged', function () {
+                if (!tts.voice) { var v = swedishVoice(); if (v) tts.voice = v; }
+            });
+        }
+        // Sluta följa med automatiskt när användaren själv scrollar
+        ['wheel', 'touchmove'].forEach(function (ev) {
+            window.addEventListener(ev, function () { if (tts.playing) tts.follow = false; }, { passive: true });
+        });
+        window.addEventListener('pagehide', function () { window.speechSynthesis.cancel(); });
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Om / 404                                                             */
     /* ------------------------------------------------------------------ */
 
@@ -1066,7 +1307,7 @@
         var st = IDX.stats;
         main.innerHTML = '<article class="view">' +
             '<header class="article-head wrap"><ol class="crumbs"><li><a href="#/">Start</a></li></ol>' +
-            '<h1 class="article-title">Om webbplatsen</h1></header>' +
+            '<h1 class="article-title">Om webbplatsen</h1><div class="article-meta">' + listenButton() + '</div></header>' +
             '<div class="wrap"><div class="article-layout"><div class="article-main"><div class="prose">' +
             '<p class="lede">Södermalm i tid och rum är en webbplats om Södermalms gator, gränder, berg och människor, sammanställd av Bengt-Göran Jönsson i Olofström.</p>' +
             '<p>Här finns ' + st.places + ' platser fördelade på ' + st.pages + ' sidor och omkring ' + Math.floor(st.images / 100) * 100 + ' bilder: historiska kartor från 1600-talet och framåt, fotografier från sekelskiftet, vykort, målningar och nutidsbilder tagna längs samma gator.</p>' +
@@ -1420,6 +1661,7 @@
             if (act === 'lb-close') { closeLightbox(); return; }
             if (act === 'lb-prev') { step(-1); return; }
             if (act === 'lb-next') { step(1); return; }
+            if (act.indexOf('tts-') === 0) { ttsAction(act); return; }
             if (act === 'reveal') {
                 var on = actionEl.getAttribute('aria-pressed') !== 'true';
                 actionEl.setAttribute('aria-pressed', on);
