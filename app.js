@@ -603,6 +603,7 @@
     var leafletLoading = null;
     var mapDataLoading = null;
     var mapState = null;
+    var mapMemory = null;   // senaste kartvy, så att tillbaka-knappen hamnar på samma ställe
 
     function loadScript(src) {
         return new Promise(function (resolve, reject) {
@@ -678,7 +679,7 @@
             '<button class="map-panel-toggle" type="button" data-action="map-panel" aria-expanded="false" aria-controls="mapList">' +
             '<span class="grip" aria-hidden="true"></span>' +
             '<span class="map-panel-title"><b>Karta</b><span>' + list.length + ' platser på Södermalm</span></span>' + ICON.list + '</button>' +
-            '<p class="map-intro">Tryck på en gata eller en prick för att se sidorna om den och alla artiklar där den nämns.</p>' +
+            '<p class="map-intro">Tryck på en prick för att öppna artikeln. Tryck på en gata för att se alla artiklar där den nämns.</p>' +
             '<label class="map-filter">' + ICON.search + '<input id="mapFilter" type="search" placeholder="Sök gata eller plats" autocomplete="off" enterkeyhint="search"></label>' +
             '</div>' +
             '<div class="map-list" id="mapList"><ol class="map-group">' + list.map(function (p) {
@@ -753,22 +754,29 @@
                     .addTo(map);
             });
             var dot = L.circleMarker(g.p, {
-                radius: 7, color: surface, weight: 2.5, fillColor: accent, fillOpacity: 1, className: 'map-dot'
+                radius: 7, color: surface, weight: 2.5, fillColor: accent, fillOpacity: 1, className: 'map-dot', interactive: false
             }).addTo(map);
-            dot.bindTooltip(esc(p.name), { direction: 'top', offset: [0, -8], permanent: true, className: 'map-label' });
-            dot.on('click', function (e) { L.DomEvent.stopPropagation(e); select({ place: p.id }, true); })
+            // Osynlig, större tryckyta runt pricken (lätt att träffa med fingret)
+            var hit = L.circleMarker(g.p, { radius: 16, stroke: false, fillOpacity: 0, className: 'map-hit' }).addTo(map);
+            hit.bindTooltip(esc(p.name), { direction: 'top', offset: [0, -8], permanent: true, interactive: true, className: 'map-label' });
+            hit.on('click', function (e) { L.DomEvent.stopPropagation(e); openPlace(p.id); })
                 .on('mouseover', function () { hover(p.id, true); })
                 .on('mouseout', function () { hover(p.id, false); });
-            layers[p.id] = { dot: dot, lines: lines };
+            layers[p.id] = { dot: dot, hit: hit, lines: lines };
             if (g.p[1] > 18.015 && g.p[1] < 18.112) core.push(g.p);
         });
 
         map.invalidateSize();
         var narrowView = window.innerWidth <= 760;
-        var fit = narrowView ? core.filter(function (p) { return p[1] > 18.04 && p[1] < 18.1; }) : core;
-        map.fitBounds(L.latLngBounds(fit), narrowView
-            ? { paddingTopLeft: [8, 16], paddingBottomRight: [8, 72] }
-            : { padding: [24, 24] });
+        if (mapMemory && !focus) {
+            map.setView(mapMemory.center, mapMemory.zoom, { animate: false });
+        } else {
+            var fit = narrowView ? core.filter(function (p) { return p[1] > 18.04 && p[1] < 18.1; }) : core;
+            map.fitBounds(L.latLngBounds(fit), narrowView
+                ? { paddingTopLeft: [8, 16], paddingBottomRight: [8, 72] }
+                : { padding: [24, 24] });
+        }
+        map.on('moveend', function () { mapMemory = { center: map.getCenter(), zoom: map.getZoom() }; });
         var canvas = document.getElementById('mapCanvas');
         function labels() { canvas.classList.toggle('show-labels', map.getZoom() >= 15.5); }
         map.on('zoomend', labels);
@@ -805,8 +813,8 @@
                 line.setStyle({ color: accent, weight: sel ? 7 : hot ? 6 : 4, opacity: sel ? 0.95 : hot ? 0.8 : 0.45 });
                 if (hot) line.bringToFront();
             });
-            if (hot) l.dot.bringToFront();
-            var tip = l.dot.getTooltip() && l.dot.getTooltip().getElement();
+            if (hot) { l.dot.bringToFront(); l.hit.bringToFront(); }
+            var tip = l.hit.getTooltip() && l.hit.getTooltip().getElement();
             if (tip) tip.classList.toggle('hot', !!hot);
         }
 
@@ -843,6 +851,12 @@
         mapState.hover = function (key, on) {
             if (layers[key]) hover(key, on); else hoverStreet(key, on);
         };
+
+        // Prick -> direkt till artikeln om platsen
+        function openPlace(id) {
+            linkNavigation = true;
+            location.hash = '#/' + id;
+        }
 
         function select(target, fromMap) {
             var prev = mapState.selected;
