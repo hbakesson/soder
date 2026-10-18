@@ -17,6 +17,7 @@ Kräver: beautifulsoup4 och lxml (finns förinstallerat på macOS-python3 här,
 annars  pip3 install beautifulsoup4 lxml).
 """
 
+import hashlib
 import json
 import os
 import posixpath
@@ -1479,9 +1480,35 @@ def main():
     js = "window.SODER_INDEX = %s;\n" % json.dumps(index, ensure_ascii=False, separators=(",", ":"))
     (OUT / "index.js").write_text(js, encoding="utf-8")
 
+    stamp_versions()
+
     size = sum(p.stat().st_size for p in OUT.rglob("*.js"))
     print("Byggde %d platser, %d sidor, %d bilder (%.1f MB data)." % (
         index["stats"]["places"], len(page_index), total_imgs, size / 1e6))
+
+
+def file_hash(paths):
+    h = hashlib.sha1()
+    for p in paths:
+        h.update(p.read_bytes())
+    return h.hexdigest()[:10]
+
+
+def stamp_versions():
+    """Sätt ?v=<hash> på css/js i index.html så att webbläsare inte visar
+    gamla cachade filer efter en uppdatering (GitHub Pages cachar i 10 min)."""
+    index_html = ROOT / "index.html"
+    html = index_html.read_text(encoding="utf-8")
+    places_v = file_hash(sorted((OUT / "places").glob("*.js")))
+    # data/index.js får veta paketens version, så att app.js kan använda den
+    idx = OUT / "index.js"
+    idx.write_text(idx.read_text(encoding="utf-8").replace(
+        "window.SODER_INDEX = {", 'window.SODER_INDEX = {"version":%s,' % json.dumps(places_v), 1),
+        encoding="utf-8")
+    for name in ("style.css", "app.js", "data/index.js"):
+        v = file_hash([ROOT / name])
+        html = re.sub(r'((?:href|src)="%s)(\?v=[0-9a-f]+)?"' % re.escape(name), r'\1?v=%s"' % v, html)
+    index_html.write_text(html, encoding="utf-8")
 
 
 if __name__ == "__main__":

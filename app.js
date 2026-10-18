@@ -106,7 +106,7 @@
             entry.promise = new Promise(function (resolve, reject) {
                 entry.resolve = resolve;
                 var s = document.createElement('script');
-                s.src = 'data/places/' + id + '.js';
+                s.src = 'data/places/' + id + '.js' + (IDX.version ? '?v=' + IDX.version : '');
                 s.async = true;
                 s.onerror = function () { delete waiting[id]; reject(new Error('Kunde inte ladda ' + id)); };
                 document.head.appendChild(s);
