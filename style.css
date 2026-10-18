@@ -1730,6 +1730,8 @@ figcaption em {
 }
 
 .map-tools button {
+    white-space: nowrap;
+    flex: none;
     border: 1px solid var(--line-strong);
     background: transparent;
     border-radius: 999px;
@@ -2291,6 +2293,26 @@ body.map-mode {
     z-index: 2;
 }
 
+.map-browse,
+.map-detail {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.map-browse[hidden],
+.map-detail[hidden] {
+    display: none;
+}
+
+.map-detail {
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
 .map-panel-head {
     padding: 20px 20px 12px;
     border-bottom: 1px solid var(--line);
@@ -2368,8 +2390,33 @@ body.map-mode {
     appearance: none;
 }
 
-.map-list {
+.map-group {
     list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.map-group-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 18px 20px 6px;
+}
+
+.map-item .sr-thumb.icon {
+    display: grid;
+    place-items: center;
+    color: var(--ink-3);
+}
+
+.map-item .sr-thumb.icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.map-list {
     margin: 0;
     padding: 6px 0 16px;
     overflow-y: auto;
@@ -2539,110 +2586,242 @@ body.map-mode {
     border-top-color: var(--ink);
 }
 
-/* Platskort */
+/* Detaljpanel: plats eller gata, med sidor och omnämnanden */
 
-.map-card {
-    position: absolute;
-    left: 20px;
-    bottom: 28px;
-    z-index: 500;
-    width: min(360px, calc(100% - 40px));
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow-lg);
-    overflow: hidden;
-    animation: pop-in 0.25s var(--ease) both;
+.md-bar {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px 10px 8px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
 }
 
-.map-card[hidden] {
+.md-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 36px;
+    padding: 0 10px 0 4px;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.md-back svg {
+    width: 20px;
+    height: 20px;
+}
+
+.md-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 0;
+    background: var(--surface-2);
+    color: var(--ink-2);
     display: none;
+    place-items: center;
+    cursor: pointer;
 }
 
-.map-card-link {
-    display: block;
-    text-decoration: none;
+.md-close svg {
+    width: 18px;
+    height: 18px;
 }
 
-.map-card-media {
+.md-media {
     position: relative;
-    aspect-ratio: 16 / 10;
+    display: block;
+    aspect-ratio: 16 / 9;
     background: var(--surface-2);
     overflow: hidden;
 }
 
-.map-card-media > img {
+.md-media > img {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-.map-card-body {
-    padding: 16px 18px 18px;
+.md-body {
+    padding: 18px 20px 28px;
     display: grid;
     gap: 6px;
 }
 
-.map-card-body .card-title {
-    font-size: 24px;
-}
-
-.map-card-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 6px;
-}
-
-.map-card-foot .card-meta {
+.md-title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 30px;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
     margin: 0;
 }
 
-.map-card-cta {
+.md-text {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    margin: 4px 0 0;
+}
+
+.md-cta {
+    justify-self: start;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 38px;
-    padding: 0 16px;
+    height: 42px;
+    padding: 0 18px;
+    margin-top: 10px;
     border-radius: 999px;
     background: var(--accent);
     color: #fff;
     font-weight: 600;
-    font-size: 14.5px;
+    font-size: 15px;
+    text-decoration: none;
 }
 
-:root[data-theme="dark"] .map-card-cta {
+:root[data-theme="dark"] .md-cta {
     color: #1a120e;
 }
 
 @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .map-card-cta {
+    :root:not([data-theme="light"]) .md-cta {
         color: #1a120e;
     }
 }
 
-.map-card-close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 2;
-    width: 36px;
-    height: 36px;
-    border-radius: 999px;
-    border: 0;
-    background: rgba(20, 16, 10, 0.55);
-    color: #fff;
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
+.md-section {
+    margin-top: 22px;
 }
 
-.map-card-close svg {
-    width: 18px;
-    height: 18px;
+.md-section h3 {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 6px;
+}
+
+.md-section h3 span {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+}
+
+.md-pages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.md-pages a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    text-decoration: none;
+    font-size: 15.5px;
+    line-height: 1.35;
+}
+
+.md-pages a:hover {
+    color: var(--accent);
+}
+
+.md-pages svg {
+    width: 16px;
+    height: 16px;
+    color: var(--ink-3);
+}
+
+.mention-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mention-list a {
+    display: grid;
+    gap: 3px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    text-decoration: none;
+}
+
+.mention-list a:hover .mention-title {
+    color: var(--accent);
+}
+
+.mention-title {
+    font-size: 15.5px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.mention-place {
+    font-size: 13px;
+    color: var(--ink-3);
+}
+
+.mention-quote {
+    font-family: var(--serif);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    margin-top: 2px;
+}
+
+.mention-quote mark {
+    background: var(--accent-soft);
+    color: var(--ink);
+    border-radius: 3px;
+    padding: 0 2px;
+}
+
+.map-more {
+    margin-top: 12px;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--ink-2);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.map-more:hover {
+    color: var(--ink);
+    border-color: var(--ink-3);
+}
+
+.md-empty {
+    font-size: 14.5px;
+    color: var(--ink-3);
+    margin: 4px 0 0;
+}
+
+.mapview .leaflet-tooltip.street-tip {
+    display: block;
+    pointer-events: none;
 }
 
 .meta-link {
@@ -2746,68 +2925,29 @@ body.map-mode {
         visibility: hidden;
     }
 
+    .map-panel.detail {
+        height: 62%;
+        max-height: 62%;
+    }
+
+    .md-close {
+        display: grid;
+    }
+
+    .md-title {
+        font-size: 26px;
+    }
+
+    .md-media {
+        aspect-ratio: 21 / 9;
+    }
+
     .map-filter {
         margin-top: 8px;
     }
 
     .map-item {
         padding: 7px 16px;
-    }
-
-    .map-card {
-        left: 12px;
-        right: 12px;
-        width: auto;
-        bottom: calc(76px + env(safe-area-inset-bottom));
-        display: block;
-    }
-
-    .map-card[hidden] {
-        display: none;
-    }
-
-    .map-card-link {
-        display: flex;
-    }
-
-    .map-card-media {
-        flex: 0 0 34%;
-        aspect-ratio: auto;
-        min-height: 128px;
-    }
-
-    .map-card-body {
-        padding: 12px 14px 14px;
-        gap: 4px;
-        min-width: 0;
-    }
-
-    .map-card-body .card-title {
-        font-size: 20px;
-        padding-right: 28px;
-    }
-
-    .map-card-body .card-text {
-        font-size: 13.5px;
-    }
-
-    .map-card-foot .card-meta {
-        display: none;
-    }
-
-    .map-card-cta {
-        height: 34px;
-        padding: 0 14px;
-        font-size: 14px;
-    }
-
-    .map-card-close {
-        top: 8px;
-        right: 8px;
-        width: 32px;
-        height: 32px;
-        background: var(--surface-2);
-        color: var(--ink-2);
     }
 
     .mapview .leaflet-control-zoom {
@@ -2818,12 +2958,12 @@ body.map-mode {
         bottom: calc(64px + env(safe-area-inset-bottom));
     }
 
-    .map-panel {
-        z-index: 1000;
+    .map-panel.detail + .map-canvas .leaflet-bottom {
+        bottom: 62%;
     }
 
-    .map-card {
-        z-index: 1001;
+    .map-panel {
+        z-index: 1000;
     }
 }
 

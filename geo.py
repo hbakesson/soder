@@ -20,6 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "data" / "geo.js"
+STREETS = ROOT / "source" / "streets.json"   # alla gator, råmaterial för build.py
 BBOX = (59.300, 18.010, 59.327, 18.115)   # syd, väst, nord, öst
 UA = "sodermalm-i-tid-och-rum/1.0 (https://github.com/hbakesson/soder)"
 
@@ -284,6 +285,11 @@ def main():
         if "nudge" in spec:
             point = (point[0] + spec["nudge"][0], point[1] + spec["nudge"][1])
         entry = {"p": [round(point[0], 5), round(point[1], 5)]}
+        terms = list(spec.get("street", []))
+        if "area" in spec:
+            terms.append(spec["area"])
+        if terms:
+            entry["t"] = terms
         if lines and spec.get("lines", True):
             entry["l"] = [[[round(p[0], 5), round(p[1], 5)] for p in simplify(line)] for line in lines]
         places[pid] = entry
@@ -294,6 +300,21 @@ def main():
     print("Skrev %s: %d platser (%.0f kB)." % (OUT.relative_to(ROOT), len(places), len(js) / 1000))
     for pid, spec in missing:
         print("  Saknas:", pid, spec, file=sys.stderr)
+
+    # Alla namngivna gator, för klickbara gator och registret över omnämnanden.
+    # build.py väljer ut de gator som faktiskt nämns i texterna.
+    streets = {}
+    for el in osm["elements"]:
+        tags = el["tags"]
+        if "highway" not in tags or tags.get("highway") in ("motorway", "motorway_link", "trunk_link", "proposed", "construction"):
+            continue
+        for line in element_lines(el):
+            if len(line) > 1:
+                streets.setdefault(tags["name"], []).append(
+                    [[round(p[0], 5), round(p[1], 5)] for p in simplify(line)])
+    STREETS.write_text(json.dumps(streets, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+                       encoding="utf-8")
+    print("Skrev %s: %d gator." % (STREETS.relative_to(ROOT), len(streets)))
 
 
 if __name__ == "__main__":

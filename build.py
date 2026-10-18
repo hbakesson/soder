@@ -171,6 +171,23 @@ MAIN_PAGE = {
     "stigberget": "stigberget",
 }
 
+# Äldre eller andra stavningar som räknas som samma gata/plats vid sökning
+# efter omnämnanden i texterna (nyckel = namnet i OpenStreetMap eller platsnamn).
+ALIASES = {
+    "Renstiernas Gata": ["Renstjernas gata", "Renstiernas gatan", "Renstjernasgatan"],
+    "Sankt Paulsgatan": ["S:t Paulsgatan", "St. Paulsgatan", "St Paulsgatan", "S:t Pauls gata"],
+    "Maria Prästgårdsgata": ["Prästgårdsgatan", "Maria Prästgårdsgatan"],
+    "Bengt Ekehjelmsgatan": ["Bengt Ekenhjelmsgatan"],
+    "Torkel Knutssonsgatan": ["Torkel Knutsonsgatan"],
+    "Wollmar Yxkullsgatan": ["Wolmar Yxkullsgatan"],
+    "Mäster Mikaels Gata": ["Mäster Mikaels gata", "Mäster Mickels gata"],
+    "Sista Styverns Trappor": ["Sista styverns trappor", "Sista styvern"],
+    "Maria Trappgränd": ["Maria trappgränd"],
+    "Hornsgatan, kring Maria kyrka": ["Maria Magdalena kyrka", "Maria kyrka"],
+    "Katarina": ["Katarina kyrka", "Katarina församling"],
+    "Vita bergen": ["Vita Bergen", "Vitabergen"],
+}
+
 # Utvalda platser på startsidan (i ordning).
 FEATURED = ["fjallgatan", "mariaberget", "slussen", "vitabergen", "langholmen",
             "bellmansgatanshornsg"]
@@ -1432,6 +1449,9 @@ def main():
         "fjallgatan": "fjallgatan/fjgsodrasidan.jpg",
     }.items()}
 
+    # ---- omnämnanden: vilka sidor nämner vilken gata/plats ----
+    mentions_js = build_mentions(pages, folders_main)
+
     # ---- skriv platsfiler ----
     OUT.mkdir(exist_ok=True)
     (OUT / "places").mkdir(exist_ok=True)
@@ -1501,12 +1521,114 @@ def main():
     ])
     js = "window.SODER_INDEX = %s;\n" % json.dumps(index, ensure_ascii=False, separators=(",", ":"))
     (OUT / "index.js").write_text(js, encoding="utf-8")
+    if mentions_js:
+        (OUT / "mentions.js").write_text(mentions_js[0], encoding="utf-8")
+        (OUT / "streets.js").write_text(mentions_js[1], encoding="utf-8")
 
     stamp_versions()
 
     size = sum(p.stat().st_size for p in OUT.rglob("*.js"))
     print("Byggde %d platser, %d sidor, %d bilder (%.1f MB data)." % (
         index["stats"]["places"], len(page_index), total_imgs, size / 1e6))
+
+
+def page_text(blocks):
+    """Löptext, rubriker och bildtexter (inte länklistor) som klartext."""
+    parts = []
+    for b in blocks:
+        t = b["t"]
+        if t in ("p", "h", "src", "note"):
+            parts.append(plain(b["h"]))
+        elif t == "fig":
+            parts.append(plain(b["f"].get("c", "")))
+        elif t == "gal":
+            parts.extend(plain(f.get("c", "")) for f in b["items"])
+        elif t == "spread":
+            parts.append(page_text(b["text"]))
+            parts.extend(plain(f.get("c", "")) for f in b["media"])
+    return " \n ".join(x for x in parts if x)
+
+
+def snippet(text, start, end, before=55, after=75):
+    a = max(0, start - before)
+    b = min(len(text), end + after)
+    if a > 0:
+        sp = text.find(" ", a)
+        a = sp + 1 if 0 <= sp < start else a
+    if b < len(text):
+        sp = text.rfind(" ", end, b)
+        b = sp if sp > end else b
+    out = norm_ws(text[a:b]).strip()
+    return ("… " if a > 0 else "") + out + (" …" if b < len(text) else "")
+
+
+def term_regex(term):
+    return re.compile(r"(?<![a-z0-9])%ss?(?![a-z0-9])" % re.escape(fold(term)))
+
+
+def find_mentions(texts, terms, exclude_folder=None, limit=40):
+    keys = [fold(t) for t in terms]
+    regs = [term_regex(t) for t in terms]
+    hits = []
+    for pid, (text, folded) in texts.items():
+        if exclude_folder and pid.split("/", 1)[0] == exclude_folder:
+            continue
+        if not any(k in folded for k in keys):
+            continue
+        n, first = 0, None
+        for rg in regs:
+            for m in rg.finditer(folded):
+                n += 1
+                if first is None or m.start() < first[0]:
+                    first = (m.start(), m.end())
+        if n:
+            hits.append([pid, n, snippet(text, first[0], first[1])])
+    hits.sort(key=lambda h: (-h[1], h[0]))
+    return hits[:limit]
+
+
+def build_mentions(pages, folders_main):
+    streets_path = SRC / "streets.json"
+    geo_path = OUT / "geo.js"
+    if not streets_path.exists() or not geo_path.exists():
+        print("(Hoppar över omnämnanden: kör geo.py först.)")
+        return None
+    streets = json.loads(streets_path.read_text(encoding="utf-8"))
+    g = geo_path.read_text(encoding="utf-8")
+    geo = json.loads(g[g.index("=") + 1:g.rindex(";")])
+
+    texts = {}
+    for pid, page in pages.items():
+        t = page_text(page["blocks"])
+        texts[pid] = (t, fold(t))
+
+    by_street = {}
+    for name in streets:
+        if len(name) < 5:
+            continue
+        hits = find_mentions(texts, [name] + ALIASES.get(name, []))
+        if hits:
+            by_street[name] = hits
+
+    by_place = {}
+    for pid_place, entry in geo.items():
+        label = NAMES.get(pid_place, "")
+        base = re.split(r",| norr$| söder$| öst$| väst$| och ", label)[0].strip()
+        terms = set(entry.get("t", []))
+        if base:
+            terms.add(base)
+        for key in list(terms) + [label]:
+            terms.update(ALIASES.get(key, []))
+        hits = find_mentions(texts, sorted(terms), exclude_folder=pid_place)
+        if hits:
+            by_place[pid_place] = hits
+
+    mentions = {"s": by_street, "p": by_place}
+    lines = {name: streets[name] for name in by_street}
+    head = "/* Genererad av build.py. */\n"
+    return (head + "window.SODER_MENTIONS = %s;\n" % json.dumps(mentions, ensure_ascii=False, separators=(",", ":")),
+            "/* Gatugeometri © OpenStreetMaps bidragsgivare (ODbL). Genererad av build.py. */\n"
+            "window.SODER_STREETS = %s;\n" % json.dumps(lines, ensure_ascii=False, separators=(",", ":")))
 
 
 def file_hash(paths):
@@ -1521,7 +1643,8 @@ def stamp_versions():
     gamla cachade filer efter en uppdatering (GitHub Pages cachar i 10 min)."""
     index_html = ROOT / "index.html"
     html = index_html.read_text(encoding="utf-8")
-    places_v = file_hash(sorted((OUT / "places").glob("*.js")))
+    places_v = file_hash(sorted((OUT / "places").glob("*.js")) +
+                         [p for p in (OUT / "mentions.js", OUT / "streets.js") if p.exists()])
     # data/index.js får veta paketens version, så att app.js kan använda den
     idx = OUT / "index.js"
     idx.write_text(idx.read_text(encoding="utf-8").replace(

@@ -158,7 +158,11 @@
         h = h.split('?')[0].replace(/\/+$/, '');
         if (!h) return { view: 'home' };
         if (h === 'om') return { view: 'about' };
-        if (h === 'karta' || h.indexOf('karta/') === 0) return { view: 'map', focus: h.split('/')[1] || null };
+        if (h === 'karta' || h.indexOf('karta/') === 0) {
+            var mp = h.split('/');
+            var focus = mp[1] === 'gata' && mp[2] ? { street: mp.slice(2).join('/') } : mp[1] ? { place: mp[1] } : null;
+            return { view: 'map', focus: focus };
+        }
         var parts = h.split('/');
         var place = placeById[parts[0]];
         if (!place) return { view: 'notfound' };
@@ -187,7 +191,7 @@
             if (restore == null) main.focus({ preventScroll: true });
         };
         leaveMap();
-        if (r.view === 'map') { renderMap(r.focus); window.scrollTo(0, 0); return; }
+        if (r.view === 'map') { renderMapView(r.focus); window.scrollTo(0, 0); return; }
         if (r.view === 'home') { renderHome(); done(); }
         else if (r.view === 'about') { renderAbout(); done(); }
         else if (r.view === 'page') {
@@ -597,24 +601,40 @@
 
     var LEAFLET = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/';
     var leafletLoading = null;
+    var mapDataLoading = null;
     var mapState = null;
+
+    function loadScript(src) {
+        return new Promise(function (resolve, reject) {
+            var js = document.createElement('script');
+            js.src = src;
+            js.onload = resolve;
+            js.onerror = function () { reject(new Error(src)); };
+            document.head.appendChild(js);
+        });
+    }
 
     function loadLeaflet() {
         if (window.L) return Promise.resolve();
         if (!leafletLoading) {
-            leafletLoading = new Promise(function (resolve, reject) {
-                var css = document.createElement('link');
-                css.rel = 'stylesheet';
-                css.href = LEAFLET + 'leaflet.min.css';
-                document.head.appendChild(css);
-                var js = document.createElement('script');
-                js.src = LEAFLET + 'leaflet.min.js';
-                js.onload = resolve;
-                js.onerror = function () { leafletLoading = null; reject(new Error('Leaflet')); };
-                document.head.appendChild(js);
-            });
+            var css = document.createElement('link');
+            css.rel = 'stylesheet';
+            css.href = LEAFLET + 'leaflet.min.css';
+            document.head.appendChild(css);
+            leafletLoading = loadScript(LEAFLET + 'leaflet.min.js').catch(function (e) { leafletLoading = null; throw e; });
         }
         return leafletLoading;
+    }
+
+    /* Gatulinjer och register över omnämnanden (laddas bara för kartan) */
+    function loadMapData() {
+        if (window.SODER_MENTIONS && window.SODER_STREETS) return Promise.resolve();
+        if (!mapDataLoading) {
+            var v = IDX.version ? '?v=' + IDX.version : '';
+            mapDataLoading = Promise.all([loadScript('data/mentions.js' + v), loadScript('data/streets.js' + v)])
+                .catch(function (e) { mapDataLoading = null; throw e; });
+        }
+        return mapDataLoading;
     }
 
     function cssVar(name) {
@@ -634,37 +654,66 @@
             .sort(function (a, b) { return a.name.localeCompare(b.name, 'sv'); });
     }
 
-    function renderMap(focus) {
+    /* Gata i OSM -> plats på webbplatsen (om gatan har en egen plats) */
+    function streetToPlace() {
+        var map = {};
+        mapPlaces().forEach(function (p) {
+            (GEO[p.id].t || []).forEach(function (t) { if (!map[t]) map[t] = p.id; });
+        });
+        // Delade gator (norr/söder, öst/väst) pekar på huvudplatsen om den finns
+        ['fjallgatan', 'tjarhovsgatan', 'hornsgatan'].forEach(function (id) {
+            (GEO[id] && GEO[id].t || []).forEach(function (t) { map[t] = id; });
+        });
+        return map;
+    }
+
+    function renderMapView(focus) {
         document.title = 'Karta · ' + SITE;
         document.body.classList.add('map-mode');
         var list = mapPlaces();
         main.innerHTML = '<div class="mapview">' +
             '<aside class="map-panel" id="mapPanel">' +
+            '<div class="map-browse" id="mapBrowse">' +
             '<div class="map-panel-head">' +
             '<button class="map-panel-toggle" type="button" data-action="map-panel" aria-expanded="false" aria-controls="mapList">' +
             '<span class="grip" aria-hidden="true"></span>' +
             '<span class="map-panel-title"><b>Karta</b><span>' + list.length + ' platser på Södermalm</span></span>' + ICON.list + '</button>' +
-            '<p class="map-intro">Tryck på en prick eller en gata för att läsa om platsen.</p>' +
-            '<label class="map-filter">' + ICON.search + '<input id="mapFilter" type="search" placeholder="Filtrera platser" autocomplete="off" enterkeyhint="search"></label>' +
+            '<p class="map-intro">Tryck på en gata eller en prick för att se sidorna om den och alla artiklar där den nämns.</p>' +
+            '<label class="map-filter">' + ICON.search + '<input id="mapFilter" type="search" placeholder="Sök gata eller plats" autocomplete="off" enterkeyhint="search"></label>' +
             '</div>' +
-            '<ol class="map-list" id="mapList">' + list.map(function (p) {
+            '<div class="map-list" id="mapList"><ol class="map-group">' + list.map(function (p) {
                 return '<li><button type="button" class="map-item" data-place="' + p.id + '">' +
                     '<span class="sr-thumb">' + (p.img ? (p.img.crop ? croppedImg(p.img, 4 / 3, '') : img(p.img.s, 0, 0, '')) : '') + '</span>' +
                     '<span class="sr-txt"><span class="sr-title">' + esc(p.name) + '</span><span class="sr-sub">' + esc(CATS[p.cat] || '') + '</span></span></button></li>';
-            }).join('') + '</ol>' +
+            }).join('') + '</ol><div id="mapStreetList"></div></div>' +
+            '</div>' +
+            '<div class="map-detail" id="mapDetail" hidden></div>' +
             '</aside>' +
             '<div class="map-canvas" id="mapCanvas"><div id="leafletMap" class="leaflet-host" role="application" aria-label="Karta över Södermalm"></div>' +
-            '<div class="map-loading"><div class="spinner"></div></div>' +
-            '<article class="map-card" id="mapCard" hidden></article></div>' +
+            '<div class="map-loading"><div class="spinner"></div></div></div>' +
             '</div>';
 
-        loadLeaflet().then(function () {
+        Promise.all([loadLeaflet(), loadMapData()]).then(function () {
             if (!document.getElementById('leafletMap')) return;
+            renderStreetList();
             initMap(list, focus);
         }).catch(function () {
             var c = document.getElementById('mapCanvas');
             if (c) c.innerHTML = '<p class="empty-state map-error">Kartan kunde inte laddas.<small>Kontrollera internetanslutningen.</small></p>';
         });
+    }
+
+    function renderStreetList() {
+        var owned = streetToPlace();
+        var names = Object.keys(window.SODER_MENTIONS.s).filter(function (n) { return !owned[n]; })
+            .sort(function (a, b) { return a.localeCompare(b, 'sv'); });
+        document.getElementById('mapStreetList').innerHTML =
+            '<p class="map-group-title">Fler gator som nämns</p><ol class="map-group">' + names.map(function (n) {
+                var c = window.SODER_MENTIONS.s[n].length;
+                return '<li><button type="button" class="map-item street" data-street="' + esc(n) + '">' +
+                    '<span class="sr-thumb icon">' + ICON.pin + '</span>' +
+                    '<span class="sr-txt"><span class="sr-title">' + esc(n) + '</span><span class="sr-sub">Nämns i ' + plural(c, 'artikel', 'artiklar') + '</span></span></button></li>';
+            }).join('') + '</ol>';
     }
 
     function initMap(list, focus) {
@@ -675,14 +724,30 @@
         var tiles = tileLayer().addTo(map);
         var accent = cssVar('--accent');
         var surface = cssVar('--surface');
+        var inkSoft = cssVar('--ink-2');
         var layers = {};
+        var streetLayers = {};
         var core = [];
+        var owned = streetToPlace();
+
+        // Alla gator som nämns i texterna: osynliga tills man pekar på dem
+        var streetRenderer = L.canvas({ tolerance: 8 });
+        Object.keys(window.SODER_STREETS).forEach(function (name) {
+            if (owned[name]) return;
+            streetLayers[name] = window.SODER_STREETS[name].map(function (l) {
+                return L.polyline(l, { renderer: streetRenderer, color: inkSoft, weight: 5, opacity: 0, lineCap: 'round' })
+                    .on('click', function (e) { L.DomEvent.stopPropagation(e); select({ street: name }, true); })
+                    .on('mouseover', function () { hoverStreet(name, true); })
+                    .on('mouseout', function () { hoverStreet(name, false); })
+                    .addTo(map);
+            });
+        });
 
         list.forEach(function (p) {
             var g = GEO[p.id];
             var lines = (g.l || []).map(function (l) {
                 return L.polyline(l, { color: accent, weight: 4, opacity: 0.45, lineCap: 'round', className: 'map-line' })
-                    .on('click', function () { selectPlace(p.id, true); })
+                    .on('click', function (e) { L.DomEvent.stopPropagation(e); select({ place: p.id }, true); })
                     .on('mouseover', function () { hover(p.id, true); })
                     .on('mouseout', function () { hover(p.id, false); })
                     .addTo(map);
@@ -691,7 +756,7 @@
                 radius: 7, color: surface, weight: 2.5, fillColor: accent, fillOpacity: 1, className: 'map-dot'
             }).addTo(map);
             dot.bindTooltip(esc(p.name), { direction: 'top', offset: [0, -8], permanent: true, className: 'map-label' });
-            dot.on('click', function () { selectPlace(p.id, true); })
+            dot.on('click', function (e) { L.DomEvent.stopPropagation(e); select({ place: p.id }, true); })
                 .on('mouseover', function () { hover(p.id, true); })
                 .on('mouseout', function () { hover(p.id, false); });
             layers[p.id] = { dot: dot, lines: lines };
@@ -710,22 +775,30 @@
         labels();
         canvas.classList.add('ready');
 
+        var streetTip = L.tooltip({ direction: 'top', offset: [0, -6], className: 'map-label hot street-tip' });
+
         function onTheme() {
             map.removeLayer(tiles);
             tiles = tileLayer().addTo(map);
             tiles.bringToBack();
             accent = cssVar('--accent');
             surface = cssVar('--surface');
+            inkSoft = cssVar('--ink-2');
             Object.keys(layers).forEach(function (id) { style(id); });
+            Object.keys(streetLayers).forEach(function (n) { styleStreet(n); });
         }
         document.addEventListener('soder:theme', onTheme);
 
         mapState = { map: map, layers: layers, selected: null, onTheme: onTheme };
 
+        function isSel(kind, key) {
+            return mapState.selected && mapState.selected[kind] === key;
+        }
+
         function style(id) {
             var l = layers[id];
             if (!l) return;
-            var sel = mapState.selected === id;
+            var sel = isSel('place', id);
             var hot = sel || l.hot;
             l.dot.setStyle({ radius: sel ? 11 : hot ? 9 : 7, color: surface, fillColor: accent, weight: sel ? 3.5 : 2.5 });
             l.lines.forEach(function (line) {
@@ -737,6 +810,14 @@
             if (tip) tip.classList.toggle('hot', !!hot);
         }
 
+        function styleStreet(name) {
+            var sel = isSel('street', name);
+            var hot = sel || streetLayers[name].hot;
+            streetLayers[name].forEach(function (line) {
+                line.setStyle({ color: sel ? accent : inkSoft, weight: sel ? 7 : 5, opacity: sel ? 0.95 : hot ? 0.55 : 0 });
+            });
+        }
+
         function hover(id, on) {
             if (!layers[id]) return;
             layers[id].hot = on;
@@ -744,82 +825,166 @@
             var item = main.querySelector('.map-item[data-place="' + id + '"]');
             if (item) item.classList.toggle('hot', on);
         }
-        mapState.hover = hover;
 
-        function selectPlace(id, fromMap) {
-            var prev = mapState.selected;
-            mapState.selected = id;
-            if (prev) style(prev);
-            style(id);
-            var p = placeById[id];
-            var g = GEO[id];
-            showCard(p);
-            main.querySelectorAll('.map-item').forEach(function (b) {
-                var on = b.getAttribute('data-place') === id;
-                b.setAttribute('aria-current', on ? 'true' : 'false');
-                if (on && !fromMap) {
-                    // scrolla bara listan, aldrig sidan
-                    var listEl = b.closest('.map-list');
-                    var top = b.offsetTop - listEl.offsetTop;
-                    if (top < listEl.scrollTop || top > listEl.scrollTop + listEl.clientHeight - b.offsetHeight) {
-                        listEl.scrollTop = top - listEl.clientHeight / 3;
-                    }
-                }
-            });
-            try { history.replaceState(null, '', '#/karta/' + id); } catch (e) { }
-            currentHash = location.hash;
-            // Lämna plats för kortet: till höger om det på datorn, ovanför på mobilen
-            var narrow = window.innerWidth <= 760;
-            var pad = narrow
-                ? { paddingTopLeft: [32, 48], paddingBottomRight: [32, 250] }
-                : { paddingTopLeft: [420, 60], paddingBottomRight: [60, 60] };
-            var target = g.l && g.l.length
-                ? L.latLngBounds([].concat.apply([], g.l))
-                : L.latLng(g.p).toBounds(220);
-            if (!fromMap) {
-                map.flyToBounds(target, Object.assign({ maxZoom: 17, duration: 0.6 }, pad));
+        function hoverStreet(name, on) {
+            if (!streetLayers[name]) return;
+            streetLayers[name].hot = on;
+            styleStreet(name);
+            el.style.cursor = on ? 'pointer' : '';
+            if (on && !isSel('street', name)) {
+                var line = streetLayers[name][Math.floor(streetLayers[name].length / 2)];
+                var pts = line.getLatLngs();
+                streetTip.setLatLng(pts[Math.floor(pts.length / 2)]).setContent(esc(name)).addTo(map);
             } else {
-                var size = map.getSize();
-                var pt = map.latLngToContainerPoint(g.p);
-                var hidden = narrow ? pt.y > size.y - 250 : pt.x < 420 && pt.y > size.y - 420;
-                if (hidden) map.panInside(g.p, narrow ? { paddingBottomRight: [40, 270] } : { paddingTopLeft: [440, 40] });
+                map.removeLayer(streetTip);
             }
-            loadPlace(id).catch(function () { });
         }
-        mapState.select = selectPlace;
 
-        map.on('click', function () { closeCard(); });
+        mapState.hover = function (key, on) {
+            if (layers[key]) hover(key, on); else hoverStreet(key, on);
+        };
 
-        if (focus && layers[focus]) {
-            setTimeout(function () { selectPlace(focus, false); }, 150);
+        function select(target, fromMap) {
+            var prev = mapState.selected;
+            mapState.selected = target;
+            if (prev && prev.place) style(prev.place);
+            if (prev && prev.street && streetLayers[prev.street]) styleStreet(prev.street);
+            map.removeLayer(streetTip);
+            var g, bounds;
+            if (target.place) {
+                style(target.place);
+                g = GEO[target.place];
+                bounds = g.l && g.l.length ? L.latLngBounds([].concat.apply([], g.l)) : L.latLng(g.p).toBounds(220);
+                loadPlace(target.place).catch(function () { });
+            } else {
+                styleStreet(target.street);
+                var all = [].concat.apply([], window.SODER_STREETS[target.street] || []);
+                bounds = all.length ? L.latLngBounds(all) : null;
+                streetLayers[target.street].forEach(function (l) { l.bringToFront(); });
+            }
+            showDetail(target);
+            markListItem(target, fromMap);
+            try { history.replaceState(null, '', '#/karta/' + (target.place || 'gata/' + encodeURIComponent(target.street))); } catch (e) { }
+            currentHash = location.hash;
+            if (!bounds) return;
+            // Lämna plats för detaljpanelen på mobilen (arket nedtill)
+            var narrow = window.innerWidth <= 760;
+            var sheet = narrow ? Math.round(el.clientHeight * 0.62) : 0;
+            if (!fromMap) {
+                map.flyToBounds(bounds, {
+                    maxZoom: 17, duration: 0.6,
+                    paddingTopLeft: [40, 50], paddingBottomRight: [40, sheet + 30]
+                });
+            } else if (narrow) {
+                var pt = map.latLngToContainerPoint(bounds.getCenter());
+                if (pt.y > el.clientHeight - sheet - 20) {
+                    map.panBy([0, pt.y - (el.clientHeight - sheet) / 2], { duration: 0.4 });
+                }
+            }
+        }
+        mapState.select = select;
+
+        map.on('click', function () { closeDetail(); });
+
+        if (focus) {
+            setTimeout(function () {
+                if (focus.place && layers[focus.place]) select(focus, false);
+                else if (focus.street && window.SODER_MENTIONS.s[focus.street]) {
+                    if (owned[focus.street]) select({ place: owned[focus.street] }, false);
+                    else select(focus, false);
+                }
+            }, 150);
         }
     }
 
-    function showCard(p) {
-        var card = document.getElementById('mapCard');
-        if (!card) return;
-        var media = p.img
-            ? '<div class="map-card-media">' + (p.img.crop ? croppedImg(p.img, window.innerWidth <= 760 ? 0.9 : 16 / 10, '') : img(p.img.s, p.img.w, p.img.h, '')) + '</div>'
-            : '';
-        card.innerHTML = '<button class="map-card-close" type="button" data-action="map-card-close" aria-label="Stäng">' + ICON.close + '</button>' +
-            '<a class="map-card-link" href="#/' + p.id + '">' + media +
-            '<div class="map-card-body"><span class="card-kicker">' + esc(CATS[p.cat] || '') + '</span>' +
-            '<h2 class="card-title">' + esc(p.name) + '</h2>' +
-            (p.ex ? '<p class="card-text">' + esc(p.ex) + '</p>' : '') +
-            '<span class="map-card-foot"><span class="card-meta"><span>' + plural(p.pages.length, 'sida', 'sidor') + '</span><span>' + plural(p.n_img, 'bild', 'bilder') + '</span></span>' +
-            '<span class="map-card-cta">Läs mer ' + ICON.arrow + '</span></span></div></a>';
-        card.hidden = false;
-        document.getElementById('mapPanel').classList.remove('open');
+    function markListItem(target, fromMap) {
+        main.querySelectorAll('.map-item').forEach(function (b) {
+            var on = target && (b.getAttribute('data-place') === target.place || (target.street && b.getAttribute('data-street') === target.street));
+            b.setAttribute('aria-current', on ? 'true' : 'false');
+            if (on && !fromMap) {
+                // scrolla bara listan, aldrig sidan
+                var listEl = document.getElementById('mapList');
+                var top = b.getBoundingClientRect().top - listEl.getBoundingClientRect().top + listEl.scrollTop;
+                if (top < listEl.scrollTop || top > listEl.scrollTop + listEl.clientHeight - b.offsetHeight) {
+                    listEl.scrollTop = top - listEl.clientHeight / 3;
+                }
+            }
+        });
     }
 
-    function closeCard() {
-        var card = document.getElementById('mapCard');
-        if (card) card.hidden = true;
+    function mentionList(hits, terms) {
+        var folded = terms.map(fold);
+        var shown = 12;
+        return '<ol class="mention-list">' + hits.map(function (h, i) {
+            var pid = h[0];
+            var p = placeOf(pid);
+            var title = pageTitle(pid) || pid;
+            var sub = p ? p.name : '';
+            if (p && title === p.name) sub = CATS[p.cat] || '';
+            return '<li' + (i >= shown ? ' class="more" hidden' : '') + '><a href="#/' + pid + '">' +
+                '<span class="mention-title">' + esc(title) + '</span>' +
+                (sub ? '<span class="mention-place">' + esc(sub) + (h[1] > 1 ? ' · ' + h[1] + ' gånger' : '') + '</span>' : '') +
+                '<span class="mention-quote">' + highlight(h[2], folded) + '</span></a></li>';
+        }).join('') + '</ol>' +
+            (hits.length > shown ? '<button type="button" class="map-more" data-action="map-more">Visa alla ' + hits.length + '</button>' : '');
+    }
+
+    function showDetail(target) {
+        var detail = document.getElementById('mapDetail');
+        var browse = document.getElementById('mapBrowse');
+        var panel = document.getElementById('mapPanel');
+        if (!detail) return;
+        var M = window.SODER_MENTIONS;
+        var html = '<div class="md-bar"><button type="button" class="md-back" data-action="map-back">' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Alla platser</button>' +
+            '<button type="button" class="md-close" data-action="map-back" aria-label="Stäng">' + ICON.close + '</button></div>';
+        if (target.place) {
+            var p = placeById[target.place];
+            var hits = M.p[p.id] || [];
+            var terms = (GEO[p.id].t || []).concat([p.name.split(/,| norr$| söder$| öst$| väst$/)[0]]);
+            html += (p.img ? '<a class="md-media" href="#/' + p.id + '">' + (p.img.crop ? croppedImg(p.img, 16 / 9, '') : img(p.img.s, p.img.w, p.img.h, '')) + '</a>' : '') +
+                '<div class="md-body">' +
+                '<span class="card-kicker">' + esc(CATS[p.cat] || '') + '</span>' +
+                '<h2 class="md-title">' + esc(p.name) + '</h2>' +
+                (p.ex ? '<p class="md-text">' + esc(p.ex) + '</p>' : '') +
+                '<a class="md-cta" href="#/' + p.id + '">Läs om ' + esc(p.name) + ' ' + ICON.arrow + '</a>' +
+                '<section class="md-section"><h3>Sidor om platsen <span>' + p.pages.length + '</span></h3>' +
+                '<ol class="md-pages">' + p.pages.map(function (pid, i) {
+                    return '<li' + (i >= 8 ? ' class="more" hidden' : '') + '><a href="#/' + pid + '">' + esc(pageTitle(pid)) + ICON.chev + '</a></li>';
+                }).join('') + '</ol>' +
+                (p.pages.length > 8 ? '<button type="button" class="map-more" data-action="map-more">Visa alla ' + p.pages.length + '</button>' : '') +
+                '</section>' +
+                '<section class="md-section"><h3>Nämns i andra artiklar <span>' + hits.length + '</span></h3>' +
+                (hits.length ? mentionList(hits, terms) : '<p class="md-empty">Inga andra artiklar nämner ' + esc(p.name) + '.</p>') +
+                '</section></div>';
+        } else {
+            var name = target.street;
+            var sh = M.s[name] || [];
+            html += '<div class="md-body">' +
+                '<span class="card-kicker">Gata på kartan</span>' +
+                '<h2 class="md-title">' + esc(name) + '</h2>' +
+                '<p class="md-text">Gatan har ingen egen sida, men nämns i ' + plural(sh.length, 'artikel', 'artiklar') + '.</p>' +
+                '<section class="md-section"><h3>Nämns i <span>' + sh.length + '</span></h3>' + mentionList(sh, [name]) + '</section></div>';
+        }
+        detail.innerHTML = html;
+        detail.hidden = false;
+        detail.scrollTop = 0;
+        browse.hidden = true;
+        panel.classList.add('open', 'detail');
+    }
+
+    function closeDetail() {
+        var detail = document.getElementById('mapDetail');
+        if (!detail || detail.hidden) return;
+        detail.hidden = true;
+        document.getElementById('mapBrowse').hidden = false;
+        var panel = document.getElementById('mapPanel');
+        panel.classList.remove('detail', 'open');
         if (mapState && mapState.selected) {
-            var id = mapState.selected;
+            var prev = mapState.selected;
             mapState.selected = null;
-            if (mapState.layers[id]) mapState.hover(id, false);
-            main.querySelectorAll('.map-item[aria-current="true"]').forEach(function (b) { b.setAttribute('aria-current', 'false'); });
+            mapState.hover(prev.place || prev.street, false);
+            markListItem(null);
             try { history.replaceState(null, '', '#/karta'); } catch (e) { }
             currentHash = location.hash;
         }
@@ -837,36 +1002,44 @@
     main.addEventListener('click', function (e) {
         var item = e.target.closest('.map-item');
         if (item && mapState) {
-            mapState.select(item.getAttribute('data-place'), false);
+            var place = item.getAttribute('data-place');
+            mapState.select(place ? { place: place } : { street: item.getAttribute('data-street') }, false);
             return;
         }
-        if (e.target.closest('[data-action="map-card-close"]')) { closeCard(); return; }
+        if (e.target.closest('[data-action="map-back"]')) { closeDetail(); return; }
+        var more = e.target.closest('[data-action="map-more"]');
+        if (more) {
+            more.previousElementSibling.querySelectorAll('li.more').forEach(function (li) { li.hidden = false; });
+            more.remove();
+            return;
+        }
         var tog = e.target.closest('[data-action="map-panel"]');
         if (tog) {
             var panel = document.getElementById('mapPanel');
             var open = !panel.classList.contains('open');
             panel.classList.toggle('open', open);
             tog.setAttribute('aria-expanded', open);
-            if (open) closeCard();
         }
     });
 
     main.addEventListener('mouseover', function (e) {
         var item = e.target.closest && e.target.closest('.map-item');
-        if (item && mapState && !item.contains(e.relatedTarget)) mapState.hover(item.getAttribute('data-place'), true);
+        if (item && mapState && !item.contains(e.relatedTarget)) mapState.hover(item.getAttribute('data-place') || item.getAttribute('data-street'), true);
     });
     main.addEventListener('mouseout', function (e) {
         var item = e.target.closest && e.target.closest('.map-item');
-        if (item && mapState && !item.contains(e.relatedTarget)) mapState.hover(item.getAttribute('data-place'), false);
+        if (item && mapState && !item.contains(e.relatedTarget)) mapState.hover(item.getAttribute('data-place') || item.getAttribute('data-street'), false);
     });
 
     main.addEventListener('input', function (e) {
         if (e.target.id !== 'mapFilter') return;
         var q = fold(e.target.value.trim());
         main.querySelectorAll('.map-item').forEach(function (b) {
-            var p = placeById[b.getAttribute('data-place')];
-            b.parentNode.hidden = q && fold(p.name).indexOf(q) === -1;
+            var name = b.getAttribute('data-place') ? placeById[b.getAttribute('data-place')].name : b.getAttribute('data-street');
+            b.parentNode.hidden = q && fold(name).indexOf(q) === -1;
         });
+        var title = main.querySelector('.map-group-title');
+        if (title) title.hidden = !!q && !main.querySelector('#mapStreetList li:not([hidden])');
     });
 
     /* ------------------------------------------------------------------ */
