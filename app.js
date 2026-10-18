@@ -1079,9 +1079,15 @@
     }
 
     /* Bästa svenska röst: förbättrad/premium > Google > lokal */
+    var SV_NAMES = /svenska|swedish|\balva\b|\bklara\b|\boskar\b|hedvig|sofie|mattias|\bbengt\b/i;
+
+    function isSwedish(v) {
+        return /^(sv|swe)([-_]|$)/i.test(v.lang || '') || SV_NAMES.test(v.name || '');
+    }
+
     function swedishVoice() {
         var voices = window.speechSynthesis.getVoices();
-        var sv = voices.filter(function (v) { return /^sv([-_]|$)/i.test(v.lang); });
+        var sv = voices.filter(isSwedish);
         if (!sv.length) return voices.length ? false : null;   // false = inga svenska, null = inte laddade än
         function score(v) {
             return (/enhanced|premium|förbättrad|siri/i.test(v.name) ? 4 : 0) +
@@ -1129,10 +1135,43 @@
         return parts;
     }
 
+    /* Vänta tills webbläsaren har laddat sina röster (iOS gör det asynkront) */
+    function waitForVoices(ms) {
+        return new Promise(function (resolve) {
+            var synth = window.speechSynthesis;
+            if (synth.getVoices().length) { resolve(); return; }
+            var done = false;
+            function finish() { if (!done) { done = true; resolve(); } }
+            if (synth.addEventListener) synth.addEventListener('voiceschanged', finish, { once: true });
+            var t0 = Date.now();
+            (function poll() {
+                if (done) return;
+                if (synth.getVoices().length || Date.now() - t0 > ms) finish();
+                else setTimeout(poll, 100);
+            })();
+        });
+    }
+
     function startReading() {
         if (!TTS_OK) return;
         var synth = window.speechSynthesis;
         synth.cancel();
+        // iOS: talsyntesen måste "låsas upp" direkt i trycket, innan vi väntar på rösterna
+        try {
+            var unlock = new SpeechSynthesisUtterance(' ');
+            unlock.lang = 'sv-SE';
+            unlock.volume = 0;
+            synth.speak(unlock);
+        } catch (e) { }
+        document.getElementById('ttsTitle').textContent = document.title.split(' · ')[0];
+        document.getElementById('ttsStatus').textContent = 'Hämtar svensk röst …';
+        ttsBar.classList.remove('tts-msg');
+        ttsBar.hidden = false;
+        document.body.classList.add('tts-on');
+        waitForVoices(2000).then(function () { beginReading(); });
+    }
+
+    function beginReading() {
         var voice = swedishVoice();
         if (voice === false) {
             showTtsMessage();
@@ -1144,11 +1183,7 @@
         tts.follow = true;
         if (!tts.parts.length) return;
         tts.playing = true;
-        document.getElementById('ttsTitle').textContent = document.title.split(' · ')[0];
-        ttsBar.classList.remove('tts-msg');
-        ttsBar.hidden = false;
-        document.body.classList.add('tts-on');
-        speakCurrent();
+        speakCurrent();   // köas efter upplåsningen, ingen cancel här (Chrome tappar då nästa uppläsning)
     }
 
     function speakCurrent() {
@@ -1159,7 +1194,7 @@
             if (v) tts.voice = v;
         }
         var u = new SpeechSynthesisUtterance(part.text);
-        u.lang = 'sv-SE';
+        u.lang = tts.voice && tts.voice.lang ? tts.voice.lang.replace('_', '-') : 'sv-SE';
         if (tts.voice) u.voice = tts.voice;
         u.rate = tts.rate;
         u.onend = function () {
@@ -1238,7 +1273,8 @@
         play.setAttribute('aria-label', tts.playing ? 'Pausa' : 'Spela');
         document.getElementById('ttsStatus').textContent = done
             ? 'Klart – tryck på spela för att börja om'
-            : 'Stycke ' + ((part ? part.n : 0) + 1) + ' av ' + tts.els.length;
+            : 'Stycke ' + ((part ? part.n : 0) + 1) + ' av ' + tts.els.length +
+              ' · ' + (tts.voice ? tts.voice.name.replace(/\s*\(.*\)$/, '') : 'svenska');
         ttsBar.querySelector('[data-action="tts-rate"]').textContent = String(tts.rate).replace('.', ',') + '×';
     }
 
