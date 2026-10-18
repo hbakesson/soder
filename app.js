@@ -747,7 +747,7 @@
         list.forEach(function (p) {
             var g = GEO[p.id];
             var lines = (g.l || []).map(function (l) {
-                return L.polyline(l, { color: accent, weight: 4, opacity: 0.45, lineCap: 'round', className: 'map-line' })
+                return L.polyline(l, { color: accent, weight: 8, opacity: 0, lineCap: 'round', className: 'map-line' })
                     .on('click', function (e) { L.DomEvent.stopPropagation(e); select({ place: p.id }, true); })
                     .on('mouseover', function () { hover(p.id, true); })
                     .on('mouseout', function () { hover(p.id, false); })
@@ -810,7 +810,8 @@
             var hot = sel || l.hot;
             l.dot.setStyle({ radius: sel ? 11 : hot ? 9 : 7, color: surface, fillColor: accent, weight: sel ? 3.5 : 2.5 });
             l.lines.forEach(function (line) {
-                line.setStyle({ color: accent, weight: sel ? 7 : hot ? 6 : 4, opacity: sel ? 0.95 : hot ? 0.8 : 0.45 });
+                // Gatorna är osynliga tills man pekar på dem eller väljer platsen
+                line.setStyle({ color: accent, weight: sel ? 7 : hot ? 6 : 8, opacity: sel ? 0.95 : hot ? 0.75 : 0 });
                 if (hot) line.bringToFront();
             });
             if (hot) { l.dot.bringToFront(); l.hit.bringToFront(); }
