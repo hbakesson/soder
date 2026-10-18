@@ -1138,13 +1138,38 @@
     var IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
         (/Macintosh/.test(navigator.userAgent) && 'ontouchend' in document);
 
-    /* Startas direkt i trycket. iOS spelar bara upp tal som startas
-       synkront i en användarhandling, inte efter en väntan. */
+    /* Vänta tills webbläsaren har laddat sina röster (Chrome gör det asynkront) */
+    function waitForVoices(ms) {
+        return new Promise(function (resolve) {
+            var synth = window.speechSynthesis;
+            var t0 = Date.now();
+            (function poll() {
+                if (synth.getVoices().length || Date.now() - t0 > ms) resolve();
+                else setTimeout(poll, 100);
+            })();
+        });
+    }
+
+    /* iOS spelar bara upp tal som startas direkt i trycket, så där börjar vi
+       omedelbart (språket sv-SE väljer iOS svenska röst). På datorn väntar vi
+       in rösterna, annars läser webbläsarens standardröst med engelsk brytning. */
     function startReading() {
         if (!TTS_OK) return;
         var synth = window.speechSynthesis;
         if (synth.speaking || synth.pending) synth.cancel();
         var voice = swedishVoice();
+        if (voice === null && !IS_IOS) {
+            document.getElementById('ttsTitle').textContent = document.title.split(' · ')[0];
+            document.getElementById('ttsStatus').textContent = 'Hämtar svensk röst …';
+            ttsBar.classList.remove('tts-msg');
+            ttsBar.hidden = false;
+            document.body.classList.add('tts-on');
+            waitForVoices(3000).then(function () {
+                if (swedishVoice()) startReading();
+                else showTtsMessage();
+            });
+            return;
+        }
         if (voice === false) {
             showTtsMessage();
             return;
