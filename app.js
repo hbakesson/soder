@@ -17,6 +17,7 @@
     places.forEach(function (p) { placeById[p.id] = p; });
     var pageMeta = IDX.pages;           // pid -> [titel, utdrag, tumnagel]
     var CATS = IDX.categories;
+    var GEO = window.SODER_GEO || {};
     var MEDIA = 'sodermalm.one/';
     var SITE = 'Södermalm i tid och rum';
 
@@ -28,7 +29,10 @@
         ext: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M17 14v4.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H10"/></svg>',
         pages: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h9.5a.5.5 0 0 1 .5.5V18"/><rect x="5" y="7" width="10" height="13" rx="1"/></svg>',
         search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>',
-        arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'
+        arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+        pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
+        close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+        list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"/></svg>'
     };
 
     /* ------------------------------------------------------------------ */
@@ -154,6 +158,7 @@
         h = h.split('?')[0].replace(/\/+$/, '');
         if (!h) return { view: 'home' };
         if (h === 'om') return { view: 'about' };
+        if (h === 'karta' || h.indexOf('karta/') === 0) return { view: 'map', focus: h.split('/')[1] || null };
         var parts = h.split('/');
         var place = placeById[parts[0]];
         if (!place) return { view: 'notfound' };
@@ -181,6 +186,8 @@
             window.scrollTo(0, restore || 0);
             if (restore == null) main.focus({ preventScroll: true });
         };
+        leaveMap();
+        if (r.view === 'map') { renderMap(r.focus); window.scrollTo(0, 0); return; }
         if (r.view === 'home') { renderHome(); done(); }
         else if (r.view === 'about') { renderAbout(); done(); }
         else if (r.view === 'page') {
@@ -196,7 +203,7 @@
     }
 
     function setActiveNav(r) {
-        var key = r.view === 'home' ? 'home' : r.view === 'about' ? 'om' : r.place ? r.place.id : '';
+        var key = r.view === 'home' ? 'home' : r.view === 'about' ? 'om' : r.view === 'map' ? 'karta' : r.place ? r.place.id : '';
         document.querySelectorAll('.topnav a').forEach(function (a) {
             a.classList.toggle('active', a.getAttribute('data-nav') === key);
         });
@@ -262,7 +269,7 @@
             '</div></section>' +
 
             '<section class="home-section" id="platser"><div class="wrap">' +
-            '<div class="section-head"><h2 class="section-title">Alla platser</h2><p class="section-meta" id="placeCount"></p></div>' +
+            '<div class="section-head"><h2 class="section-title">Alla platser</h2><p class="section-meta"><span id="placeCount"></span> · <a class="text-link" href="#/karta">Visa på kartan ' + ICON.arrow + '</a></p></div>' +
             '<div class="filters" role="toolbar" aria-label="Filtrera platser">' + chips + '</div>' +
             '<div class="grid" id="placeGrid"></div>' +
             '</div></section>' +
@@ -489,6 +496,7 @@
             (CATS[place.cat] ? '<span>' + esc(CATS[place.cat]) + '</span>' : '') +
             (hasToc ? '<span>' + ICON.pages + 'Sida ' + (pos + 1) + ' av ' + order.length + '</span>' : '') +
             (nImg ? '<span>' + ICON.image + plural(nImg, 'bild', 'bilder') + '</span>' : '') +
+            (GEO[place.id] ? '<a class="meta-link" href="#/karta/' + place.id + '">' + ICON.pin + 'Visa på kartan</a>' : '') +
             '</div>';
 
         var heroHtml = '';
@@ -581,6 +589,285 @@
 
     if (mqNarrow.addEventListener) mqNarrow.addEventListener('change', layoutSpreads);
     else if (mqNarrow.addListener) mqNarrow.addListener(layoutSpreads);
+
+
+    /* ------------------------------------------------------------------ */
+    /* Karta                                                                */
+    /* ------------------------------------------------------------------ */
+
+    var LEAFLET = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/';
+    var leafletLoading = null;
+    var mapState = null;
+
+    function loadLeaflet() {
+        if (window.L) return Promise.resolve();
+        if (!leafletLoading) {
+            leafletLoading = new Promise(function (resolve, reject) {
+                var css = document.createElement('link');
+                css.rel = 'stylesheet';
+                css.href = LEAFLET + 'leaflet.min.css';
+                document.head.appendChild(css);
+                var js = document.createElement('script');
+                js.src = LEAFLET + 'leaflet.min.js';
+                js.onload = resolve;
+                js.onerror = function () { leafletLoading = null; reject(new Error('Leaflet')); };
+                document.head.appendChild(js);
+            });
+        }
+        return leafletLoading;
+    }
+
+    function cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function tileLayer() {
+        // OpenStreetMaps egna kartbilder (ingen API-nyckel). Färgerna tonas i style.css.
+        return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMaps bidragsgivare</a>'
+        });
+    }
+
+    function mapPlaces() {
+        return places.filter(function (p) { return GEO[p.id]; })
+            .sort(function (a, b) { return a.name.localeCompare(b.name, 'sv'); });
+    }
+
+    function renderMap(focus) {
+        document.title = 'Karta · ' + SITE;
+        document.body.classList.add('map-mode');
+        var list = mapPlaces();
+        main.innerHTML = '<div class="mapview">' +
+            '<aside class="map-panel" id="mapPanel">' +
+            '<div class="map-panel-head">' +
+            '<button class="map-panel-toggle" type="button" data-action="map-panel" aria-expanded="false" aria-controls="mapList">' +
+            '<span class="grip" aria-hidden="true"></span>' +
+            '<span class="map-panel-title"><b>Karta</b><span>' + list.length + ' platser på Södermalm</span></span>' + ICON.list + '</button>' +
+            '<p class="map-intro">Tryck på en prick eller en gata för att läsa om platsen.</p>' +
+            '<label class="map-filter">' + ICON.search + '<input id="mapFilter" type="search" placeholder="Filtrera platser" autocomplete="off" enterkeyhint="search"></label>' +
+            '</div>' +
+            '<ol class="map-list" id="mapList">' + list.map(function (p) {
+                return '<li><button type="button" class="map-item" data-place="' + p.id + '">' +
+                    '<span class="sr-thumb">' + (p.img ? (p.img.crop ? croppedImg(p.img, 4 / 3, '') : img(p.img.s, 0, 0, '')) : '') + '</span>' +
+                    '<span class="sr-txt"><span class="sr-title">' + esc(p.name) + '</span><span class="sr-sub">' + esc(CATS[p.cat] || '') + '</span></span></button></li>';
+            }).join('') + '</ol>' +
+            '</aside>' +
+            '<div class="map-canvas" id="mapCanvas"><div id="leafletMap" class="leaflet-host" role="application" aria-label="Karta över Södermalm"></div>' +
+            '<div class="map-loading"><div class="spinner"></div></div>' +
+            '<article class="map-card" id="mapCard" hidden></article></div>' +
+            '</div>';
+
+        loadLeaflet().then(function () {
+            if (!document.getElementById('leafletMap')) return;
+            initMap(list, focus);
+        }).catch(function () {
+            var c = document.getElementById('mapCanvas');
+            if (c) c.innerHTML = '<p class="empty-state map-error">Kartan kunde inte laddas.<small>Kontrollera internetanslutningen.</small></p>';
+        });
+    }
+
+    function initMap(list, focus) {
+        var el = document.getElementById('leafletMap');
+        var map = L.map(el, { zoomControl: false, minZoom: 12, maxZoom: 19, zoomSnap: 0.5 });
+        L.control.zoom({ position: 'topright', zoomInTitle: 'Zooma in', zoomOutTitle: 'Zooma ut' }).addTo(map);
+        map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
+        var tiles = tileLayer().addTo(map);
+        var accent = cssVar('--accent');
+        var surface = cssVar('--surface');
+        var layers = {};
+        var core = [];
+
+        list.forEach(function (p) {
+            var g = GEO[p.id];
+            var lines = (g.l || []).map(function (l) {
+                return L.polyline(l, { color: accent, weight: 4, opacity: 0.45, lineCap: 'round', className: 'map-line' })
+                    .on('click', function () { selectPlace(p.id, true); })
+                    .on('mouseover', function () { hover(p.id, true); })
+                    .on('mouseout', function () { hover(p.id, false); })
+                    .addTo(map);
+            });
+            var dot = L.circleMarker(g.p, {
+                radius: 7, color: surface, weight: 2.5, fillColor: accent, fillOpacity: 1, className: 'map-dot'
+            }).addTo(map);
+            dot.bindTooltip(esc(p.name), { direction: 'top', offset: [0, -8], permanent: true, className: 'map-label' });
+            dot.on('click', function () { selectPlace(p.id, true); })
+                .on('mouseover', function () { hover(p.id, true); })
+                .on('mouseout', function () { hover(p.id, false); });
+            layers[p.id] = { dot: dot, lines: lines };
+            if (g.p[1] > 18.015 && g.p[1] < 18.112) core.push(g.p);
+        });
+
+        map.invalidateSize();
+        var narrowView = window.innerWidth <= 760;
+        var fit = narrowView ? core.filter(function (p) { return p[1] > 18.04 && p[1] < 18.1; }) : core;
+        map.fitBounds(L.latLngBounds(fit), narrowView
+            ? { paddingTopLeft: [8, 16], paddingBottomRight: [8, 72] }
+            : { padding: [24, 24] });
+        var canvas = document.getElementById('mapCanvas');
+        function labels() { canvas.classList.toggle('show-labels', map.getZoom() >= 15.5); }
+        map.on('zoomend', labels);
+        labels();
+        canvas.classList.add('ready');
+
+        function onTheme() {
+            map.removeLayer(tiles);
+            tiles = tileLayer().addTo(map);
+            tiles.bringToBack();
+            accent = cssVar('--accent');
+            surface = cssVar('--surface');
+            Object.keys(layers).forEach(function (id) { style(id); });
+        }
+        document.addEventListener('soder:theme', onTheme);
+
+        mapState = { map: map, layers: layers, selected: null, onTheme: onTheme };
+
+        function style(id) {
+            var l = layers[id];
+            if (!l) return;
+            var sel = mapState.selected === id;
+            var hot = sel || l.hot;
+            l.dot.setStyle({ radius: sel ? 11 : hot ? 9 : 7, color: surface, fillColor: accent, weight: sel ? 3.5 : 2.5 });
+            l.lines.forEach(function (line) {
+                line.setStyle({ color: accent, weight: sel ? 7 : hot ? 6 : 4, opacity: sel ? 0.95 : hot ? 0.8 : 0.45 });
+                if (hot) line.bringToFront();
+            });
+            if (hot) l.dot.bringToFront();
+            var tip = l.dot.getTooltip() && l.dot.getTooltip().getElement();
+            if (tip) tip.classList.toggle('hot', !!hot);
+        }
+
+        function hover(id, on) {
+            if (!layers[id]) return;
+            layers[id].hot = on;
+            style(id);
+            var item = main.querySelector('.map-item[data-place="' + id + '"]');
+            if (item) item.classList.toggle('hot', on);
+        }
+        mapState.hover = hover;
+
+        function selectPlace(id, fromMap) {
+            var prev = mapState.selected;
+            mapState.selected = id;
+            if (prev) style(prev);
+            style(id);
+            var p = placeById[id];
+            var g = GEO[id];
+            showCard(p);
+            main.querySelectorAll('.map-item').forEach(function (b) {
+                var on = b.getAttribute('data-place') === id;
+                b.setAttribute('aria-current', on ? 'true' : 'false');
+                if (on && !fromMap) {
+                    // scrolla bara listan, aldrig sidan
+                    var listEl = b.closest('.map-list');
+                    var top = b.offsetTop - listEl.offsetTop;
+                    if (top < listEl.scrollTop || top > listEl.scrollTop + listEl.clientHeight - b.offsetHeight) {
+                        listEl.scrollTop = top - listEl.clientHeight / 3;
+                    }
+                }
+            });
+            try { history.replaceState(null, '', '#/karta/' + id); } catch (e) { }
+            currentHash = location.hash;
+            // Lämna plats för kortet: till höger om det på datorn, ovanför på mobilen
+            var narrow = window.innerWidth <= 760;
+            var pad = narrow
+                ? { paddingTopLeft: [32, 48], paddingBottomRight: [32, 250] }
+                : { paddingTopLeft: [420, 60], paddingBottomRight: [60, 60] };
+            var target = g.l && g.l.length
+                ? L.latLngBounds([].concat.apply([], g.l))
+                : L.latLng(g.p).toBounds(220);
+            if (!fromMap) {
+                map.flyToBounds(target, Object.assign({ maxZoom: 17, duration: 0.6 }, pad));
+            } else {
+                var size = map.getSize();
+                var pt = map.latLngToContainerPoint(g.p);
+                var hidden = narrow ? pt.y > size.y - 250 : pt.x < 420 && pt.y > size.y - 420;
+                if (hidden) map.panInside(g.p, narrow ? { paddingBottomRight: [40, 270] } : { paddingTopLeft: [440, 40] });
+            }
+            loadPlace(id).catch(function () { });
+        }
+        mapState.select = selectPlace;
+
+        map.on('click', function () { closeCard(); });
+
+        if (focus && layers[focus]) {
+            setTimeout(function () { selectPlace(focus, false); }, 150);
+        }
+    }
+
+    function showCard(p) {
+        var card = document.getElementById('mapCard');
+        if (!card) return;
+        var media = p.img
+            ? '<div class="map-card-media">' + (p.img.crop ? croppedImg(p.img, window.innerWidth <= 760 ? 0.9 : 16 / 10, '') : img(p.img.s, p.img.w, p.img.h, '')) + '</div>'
+            : '';
+        card.innerHTML = '<button class="map-card-close" type="button" data-action="map-card-close" aria-label="Stäng">' + ICON.close + '</button>' +
+            '<a class="map-card-link" href="#/' + p.id + '">' + media +
+            '<div class="map-card-body"><span class="card-kicker">' + esc(CATS[p.cat] || '') + '</span>' +
+            '<h2 class="card-title">' + esc(p.name) + '</h2>' +
+            (p.ex ? '<p class="card-text">' + esc(p.ex) + '</p>' : '') +
+            '<span class="map-card-foot"><span class="card-meta"><span>' + plural(p.pages.length, 'sida', 'sidor') + '</span><span>' + plural(p.n_img, 'bild', 'bilder') + '</span></span>' +
+            '<span class="map-card-cta">Läs mer ' + ICON.arrow + '</span></span></div></a>';
+        card.hidden = false;
+        document.getElementById('mapPanel').classList.remove('open');
+    }
+
+    function closeCard() {
+        var card = document.getElementById('mapCard');
+        if (card) card.hidden = true;
+        if (mapState && mapState.selected) {
+            var id = mapState.selected;
+            mapState.selected = null;
+            if (mapState.layers[id]) mapState.hover(id, false);
+            main.querySelectorAll('.map-item[aria-current="true"]').forEach(function (b) { b.setAttribute('aria-current', 'false'); });
+            try { history.replaceState(null, '', '#/karta'); } catch (e) { }
+            currentHash = location.hash;
+        }
+    }
+
+    function leaveMap() {
+        document.body.classList.remove('map-mode');
+        if (mapState) {
+            document.removeEventListener('soder:theme', mapState.onTheme);
+            mapState.map.remove();
+            mapState = null;
+        }
+    }
+
+    main.addEventListener('click', function (e) {
+        var item = e.target.closest('.map-item');
+        if (item && mapState) {
+            mapState.select(item.getAttribute('data-place'), false);
+            return;
+        }
+        if (e.target.closest('[data-action="map-card-close"]')) { closeCard(); return; }
+        var tog = e.target.closest('[data-action="map-panel"]');
+        if (tog) {
+            var panel = document.getElementById('mapPanel');
+            var open = !panel.classList.contains('open');
+            panel.classList.toggle('open', open);
+            tog.setAttribute('aria-expanded', open);
+            if (open) closeCard();
+        }
+    });
+
+    main.addEventListener('mouseover', function (e) {
+        var item = e.target.closest && e.target.closest('.map-item');
+        if (item && mapState && !item.contains(e.relatedTarget)) mapState.hover(item.getAttribute('data-place'), true);
+    });
+    main.addEventListener('mouseout', function (e) {
+        var item = e.target.closest && e.target.closest('.map-item');
+        if (item && mapState && !item.contains(e.relatedTarget)) mapState.hover(item.getAttribute('data-place'), false);
+    });
+
+    main.addEventListener('input', function (e) {
+        if (e.target.id !== 'mapFilter') return;
+        var q = fold(e.target.value.trim());
+        main.querySelectorAll('.map-item').forEach(function (b) {
+            var p = placeById[b.getAttribute('data-place')];
+            b.parentNode.hidden = q && fold(p.name).indexOf(q) === -1;
+        });
+    });
 
     /* ------------------------------------------------------------------ */
     /* Om / 404                                                             */
@@ -1005,6 +1292,7 @@
         document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
             if (t) m.setAttribute('content', dark ? '#15130f' : '#f6f1e7');
         });
+        document.dispatchEvent(new CustomEvent('soder:theme'));
     }
 
     function toggleTheme() {

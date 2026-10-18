@@ -77,7 +77,7 @@ NAMES = {
     "hogbergsgost": "Högbergsgatan öst",
     "hogbergsgvast": "Högbergsgatan väst",
     "hornsgatan": "Hornsgatan",
-    "hornsgatanostsoder": "Hornsgatan, Hornstull",
+    "hornsgatanostsoder": "Hornsgatan, kring Maria kyrka",
     "innehall": "Källor",
     "josabeth": "Josabeth",
     "katarina": "Katarina",
@@ -1257,6 +1257,16 @@ def main():
                 return None
         return None
 
+    def first_caption(blocks):
+        for b in walk_blocks(blocks):
+            for f in figures_of([b]):
+                if f.get("c"):
+                    return plain(f["c"])
+            if b["t"] in ("p", "note"):
+                t = plain(b["h"])
+                return t if len(t) < 250 else ""
+        return ""
+
     def caption_title(blocks):
         for b in walk_blocks(blocks):
             for f in figures_of([b]):
@@ -1291,7 +1301,19 @@ def main():
             final = title
             remove_block(page["blocks"], hblock)
         else:
-            final = (label or number_title(folder, stem) or source_title(page["blocks"])
+            base = street_base(folder)
+            numbered = number_title(folder, stem)
+            street_cap = None
+            first_cap = first_caption(page["blocks"])
+            if base and first_cap:
+                m = re.search(r"(%s\s+\d+\s?[A-Z]?(?:\s?[-–]\s?\d+\s?[A-Z]?)?)\b" % re.escape(base), first_cap)
+                if m:
+                    street_cap = re.sub(r"\s?[-–]\s?", "–", m.group(1)).strip()
+            if numbered and street_cap:
+                stem_num = re.search(r"\d+", numbered[len(base):]).group(0)
+                if not re.search(r"\b%s\b" % stem_num, first_cap):
+                    numbered = None
+            final = (label or numbered or street_cap or source_title(page["blocks"])
                      or lead_title(page["blocks"])
                      or caption_title(page["blocks"]))
             if not final:
@@ -1505,7 +1527,9 @@ def stamp_versions():
     idx.write_text(idx.read_text(encoding="utf-8").replace(
         "window.SODER_INDEX = {", 'window.SODER_INDEX = {"version":%s,' % json.dumps(places_v), 1),
         encoding="utf-8")
-    for name in ("style.css", "app.js", "data/index.js"):
+    for name in ("style.css", "app.js", "data/index.js", "data/geo.js"):
+        if not (ROOT / name).exists():
+            continue
         v = file_hash([ROOT / name])
         html = re.sub(r'((?:href|src)="%s)(\?v=[0-9a-f]+)?"' % re.escape(name), r'\1?v=%s"' % v, html)
     index_html.write_text(html, encoding="utf-8")

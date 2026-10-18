@@ -11,6 +11,7 @@ Originalwebbplatsen består av drygt 500 HTML-sidor från tidigt 2000-tal, med t
 - **Text och bild hör ihop.** Varje bild visas med sin bildtext, och bilder som stod bredvid ett stycke i originalet visas fortfarande bredvid det stycket (på mobilen direkt efter det).
 - **Riktig typografi.** Stycken, rubriker, källhänvisningar och notiser känns igen och får var sin stil. Serif för läsning, mörkt läge och utskriftsläge.
 - **Alla 520 sidor nås.** Varje plats har en innehållsförteckning och bläddring mellan sidorna. Klickbara kartor fungerar, med en lista under kartan för mobilen.
+- **Karta** över Södermalm där gatorna är inritade och varje plats har en prick. Tryck på en gata eller prick för att gå till sidorna om den.
 - **Sök** (⌘K eller `/`) på platser, sidtitlar, underrubriker och personnamn.
 - **Bildvisning** i full storlek med svep, tangentbord och zoom.
 - **Fungerar på iOS och webb**, med säkra marginaler, stora tryckytor och snabb laddning (innehållet hämtas per plats först när det behövs).
@@ -37,6 +38,16 @@ Skriptet kräver `beautifulsoup4` och `lxml` (`pip3 install beautifulsoup4 lxml`
 
 Platsnamn, kategorier, utvalda platser och kortbilder ställs in överst i `build.py`.
 
+### Kartan
+
+Gatornas sträckning och platsernas positioner hämtas från OpenStreetMap och sparas i `data/geo.js`:
+
+```bash
+python3 geo.py
+```
+
+Kör det bara när en ny plats läggs till. Kopplingen mellan plats och gata (eller del av gata, korsning, park) står överst i `geo.py`. Kartbilderna kommer från OpenStreetMap och visas med Leaflet, som laddas först när kartan öppnas.
+
 ## Filstruktur
 
 | Sökväg | Innehåll |
@@ -45,8 +56,10 @@ Platsnamn, kategorier, utvalda platser och kortbilder ställs in överst i `buil
 | `style.css` | Designsystemet: färger, typografi, layout, ljust och mörkt läge |
 | `app.js` | Routing, vyer, sök och bildvisning |
 | `build.py` | Bygger `data/` från originalarkivet |
+| `geo.py` | Hämtar kartgeometri till `data/geo.js` |
 | `data/index.js` | Platser, sidtitlar, utdrag och sökord (laddas direkt) |
 | `data/places/*.js` | Sidinnehållet per plats (laddas vid behov) |
+| `data/geo.js` | Gator och punkter för kartan (© OpenStreetMaps bidragsgivare) |
 | `source/` | Originalsidorna, orörda, som källa för bygget |
 | `sodermalm.one/` | Alla bilder från originalwebbplatsen |
 
